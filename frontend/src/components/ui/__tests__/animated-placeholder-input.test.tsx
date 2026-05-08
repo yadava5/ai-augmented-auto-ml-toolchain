@@ -1,0 +1,159 @@
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { AnimatedPlaceholderInput } from '../animated-placeholder-input';
+
+describe('AnimatedPlaceholderInput', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      return window.setTimeout(() => callback(performance.now()), 0);
+    });
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id) => {
+      window.clearTimeout(id);
+    });
+  });
+
+  afterEach(() => {
+    act(() => {
+      vi.runOnlyPendingTimers();
+    });
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('hides animated placeholder overlay for numeric controlled values', () => {
+    const { container } = render(
+      <AnimatedPlaceholderInput placeholders={['numpy', 'pandas']} value={0} onChange={() => {}} />
+    );
+
+    expect(container.querySelector('[aria-hidden="true"]')).not.toBeInTheDocument();
+  });
+
+  it('keeps character spans mounted until long stagger animation is complete', () => {
+    const { container } = render(
+      <AnimatedPlaceholderInput
+        placeholders={['a', 'abcdefghijklmnop']}
+        interval={500}
+        onChange={() => {}}
+      />
+    );
+
+    const queryAnimatedChars = () =>
+      container.querySelectorAll('span[style*="placeholder-char-in"]');
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    expect(queryAnimatedChars().length).toBe(16);
+
+    // t=1180ms total (still before reset timeout ~1460ms for 16 chars).
+    act(() => {
+      vi.advanceTimersByTime(680);
+    });
+    expect(queryAnimatedChars().length).toBeGreaterThan(0);
+
+    // Advance past reset timeout (500 + 960 = 1460ms).
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(queryAnimatedChars().length).toBe(0);
+  });
+
+  it('shows an overlay caret while focused with an empty value', () => {
+    render(
+      <AnimatedPlaceholderInput placeholders={['numpy', 'pandas']} value="" onChange={() => {}} />
+    );
+
+    const input = screen.getByRole('textbox');
+    fireEvent.focus(input);
+
+    expect(document.querySelector('[data-placeholder-cursor="true"]')).toBeInTheDocument();
+    expect(input.style.caretColor).toBe('transparent');
+  });
+
+  it('hides the overlay caret after blur', () => {
+    render(
+      <AnimatedPlaceholderInput placeholders={['numpy', 'pandas']} value="" onChange={() => {}} />
+    );
+
+    const input = screen.getByRole('textbox');
+    fireEvent.focus(input);
+    fireEvent.blur(input);
+
+    expect(document.querySelector('[data-placeholder-cursor="true"]')).not.toBeInTheDocument();
+    expect(input.style.caretColor).toBe('');
+  });
+
+  it('calls onTabAccept with current placeholder when Tab is pressed on empty input', () => {
+    const onTabAccept = vi.fn();
+    render(
+      <AnimatedPlaceholderInput
+        placeholders={['Suggested query', 'Another suggestion']}
+        value=""
+        onChange={() => {}}
+        onTabAccept={onTabAccept}
+      />
+    );
+
+    const input = screen.getByRole('textbox');
+    fireEvent.keyDown(input, { key: 'Tab' });
+
+    expect(onTabAccept).toHaveBeenCalledWith('Suggested query');
+  });
+
+  it('does not call onTabAccept when input has a value', () => {
+    const onTabAccept = vi.fn();
+    render(
+      <AnimatedPlaceholderInput
+        placeholders={['Suggested query']}
+        value="user text"
+        onChange={() => {}}
+        onTabAccept={onTabAccept}
+      />
+    );
+
+    const input = screen.getByRole('textbox');
+    fireEvent.keyDown(input, { key: 'Tab' });
+
+    expect(onTabAccept).not.toHaveBeenCalled();
+  });
+
+  it('does not call onTabAccept on Shift+Tab', () => {
+    const onTabAccept = vi.fn();
+    render(
+      <AnimatedPlaceholderInput
+        placeholders={['Suggested query']}
+        value=""
+        onChange={() => {}}
+        onTabAccept={onTabAccept}
+      />
+    );
+
+    const input = screen.getByRole('textbox');
+    fireEvent.keyDown(input, { key: 'Tab', shiftKey: true });
+
+    expect(onTabAccept).not.toHaveBeenCalled();
+  });
+
+  it('forwards other key events to onKeyDown when Tab is not applicable', () => {
+    const onKeyDown = vi.fn();
+    render(
+      <AnimatedPlaceholderInput
+        placeholders={['Suggested query']}
+        value=""
+        onChange={() => {}}
+        onKeyDown={onKeyDown}
+      />
+    );
+
+    const input = screen.getByRole('textbox');
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    expect(onKeyDown).toHaveBeenCalledTimes(1);
+  });
+});

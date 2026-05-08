@@ -1,0 +1,260 @@
+import type { LlmMessage, LlmRequest } from '../llm/llmClient.js';
+
+import type { WorkflowNodeContract } from './contracts.js';
+import type { WorkflowGraphState } from './graphState.js';
+
+const MAX_MESSAGE_COUNT = 2;
+const MAX_MESSAGE_CHARS = 900;
+const MAX_TOOL_RESULTS = 3;
+const MAX_TOOL_PARAMETER_CHARS = 220;
+
+function truncate(value: string, maxChars: number): string {
+  return value.length <= maxChars ? value : `${value.slice(0, maxChars - 1)}…`;
+}
+
+function summarizeMessages(messages: LlmMessage[]): string {
+  return messages
+    .slice(-MAX_MESSAGE_COUNT)
+    .map((message, index) => `Message ${index + 1} (${message.role}):\n${truncate(message.content, MAX_MESSAGE_CHARS)}`)
+    .join('\n\n');
+}
+
+function summarizeTools(contract: WorkflowNodeContract): string {
+  if (!contract.allowedTools.length) {
+    return '(none)';
+  }
+
+  return contract.allowedTools
+    .map((tool) => [
+      `- ${tool.name}`,
+      `  Description: ${tool.description}`,
+      `  Parameters: ${truncate(JSON.stringify(tool.parameters), MAX_TOOL_PARAMETER_CHARS)}`
+    ].join('\n'))
+    .join('\n');
+}
+
+function summarizeToolResultPayload(payload: Record<string, unknown>): string {
+  const step = payload.step && typeof payload.step === 'object' && !Array.isArray(payload.step)
+    ? payload.step as Record<string, unknown>
+    : null;
+  const status = typeof payload.status === 'string'
+    ? payload.status
+    : typeof step?.status === 'string'
+      ? step.status
+      : 'unknown';
+  const stepId = typeof payload.stepId === 'string'
+    ? payload.stepId
+    : typeof step?.stepId === 'string'
+      ? step.stepId
+      : null;
+  const runId = typeof payload.runId === 'string' ? payload.runId : null;
+  const reasonCode = typeof payload.reasonCode === 'string' ? payload.reasonCode : null;
+
+  // Whitelist of domain-specific ids the planner NEEDS to see so it can
+  // correctly propagate them as tool args on downstream calls. Without this
+  // surface, `configure_experiment` would return `{status=configured}` to the
+  // planner with no experimentId, and the planner would hallucinate a UUID
+  // for `propose_training_plan`'s experimentId arg (see the sprint10 bug
+  // where the planner pulled the workflow threadId from state summary).
+  //
+  // Caveats:
+  //  - featureId pairs with featureStatus so the planner can't mistake a
+  //    'rejected' register_feature result for an ok one.
+  //  - Only adds fields when present; never emits empty "key=".
+  const experimentId = typeof payload.experimentId === 'string' ? payload.experimentId : null;
+  const experimentName = typeof payload.experimentName === 'string' ? payload.experimentName : null;
+  const featureId = typeof payload.featureId === 'string' ? payload.featureId : null;
+  const featureStatus = featureId && typeof payload.status === 'string' ? payload.status : null;
+  const datasetId = typeof payload.datasetId === 'string' ? payload.datasetId : null;
+  const notebookId = typeof payload.notebookId === 'string' ? payload.notebookId : null;
+  const cellId = typeof payload.cellId === 'string' ? payload.cellId : null;
+
+  return [
+    `status=${status}`,
+    stepId ? `stepId=${stepId}` : null,
+    runId ? `runId=${runId}` : null,
+    reasonCode ? `reasonCode=${reasonCode}` : null,
+    experimentId ? `experimentId=${experimentId}` : null,
+    experimentName ? `experimentName=${experimentName}` : null,
+    featureId ? `featureId=${featureId}${featureStatus ? ` featureStatus=${featureStatus}` : ''}` : null,
+    datasetId ? `datasetId=${datasetId}` : null,
+    notebookId ? `notebookId=${notebookId}` : null,
+    cellId ? `cellId=${cellId}` : null
+  ].filter((value): value is string => Boolean(value)).join(', ');
+}
+
+function summarizeToolResults(state: WorkflowGraphState): string {
+  if (!state.toolResultHistory.length) {
+    return '(none)';
+  }
+
+  return state.toolResultHistory
+    .slice(-MAX_TOOL_RESULTS)
+    .map((result, index) => {
+      if (result.error) {
+        return `${index + 1}. ${result.tool}: error=${truncate(result.error, 220)}`;
+      }
+
+      const output = result.output && typeof result.output === 'object' && !Array.isArray(result.output)
+        ? result.output as Record<string, unknown>
+        : null;
+      return `${index + 1}. ${result.tool}: ${output ? summarizeToolResultPayload(output) : 'output=available'}`;
+    })
+    .join('\n');
+}
+
+function summarizeExperimentContext(state: WorkflowGraphState): string | null {
+  const experiments = state.run.metadata?.experiments;
+  if (!experiments || typeof experiments !== 'object' || Array.isArray(experiments)) {
+    return null;
+  }
+  const entries = Object.values(experiments as Record<string, Record<string, unknown>>);
+  if (entries.length === 0) return null;
+
+  const lines = entries.map((exp) => {
+    const id = typeof exp.experimentId === 'string' ? exp.experimentId : '?';
+    const name = typeof exp.experimentName === 'string' ? exp.experimentName : 'unnamed';
+    const status = typeof exp.status === 'string' ? exp.status : '?';
+    const target = typeof exp.targetColumn === 'string' ? `, target=${exp.targetColumn}` : '';
+    const features = Array.isArray(exp.featureColumns)
+      ? `, features=[${(exp.featureColumns as string[]).join(', ')}]`
+      : '';
+    return `- ${id} (${name}) — status: ${status}${target}${features}`;
+  });
+
+  return `Active experiments:\n${lines.join('\n')}`;
+}
+
+function summarizeWorkflowState(state: WorkflowGraphState): string {
+  // DO NOT add `Workflow thread: ${state.run.threadId}` back. The thread id
+  // is an internal routing concern, not a planning input — exposing it led
+  // the planner to pick `thread-<uuid>` as the experimentId arg for
+  // propose_training_plan in the sprint10 Training bug, producing
+  // "Experiment thread-... not found. Call configure_experiment first."
+  return [
+    `Current node: ${state.run.currentNode}`,
+    state.controllerSummary?.runId ? `Preprocessing run: ${state.controllerSummary.runId}` : null,
+    state.controllerSummary?.activeStepId ? `Active step: ${state.controllerSummary.activeStepId}` : null,
+    state.run.activeDatasetId ? `Active dataset: ${state.run.activeDatasetId}` : null,
+    state.run.activeNotebookId ? `Active notebook: ${state.run.activeNotebookId}` : null,
+    // Experiment context persists across the MAX_TOOL_RESULTS sliding window
+    // so the planner can always see the experimentId it needs for lifecycle
+    // tools (execute_training, evaluate_results, register_model) even after
+    // configure_experiment drops out of the recent-results summary.
+    summarizeExperimentContext(state)
+  ].filter((value): value is string => Boolean(value)).join('\n');
+}
+
+function resolvePlannerReasoningEffort(): 'minimal' | 'low' {
+  return 'low';
+}
+
+function resolveAllowedOutputs(contract: WorkflowNodeContract): string[] {
+  return [
+    contract.allowedTools.length > 0 ? 'tool_call' : null,
+    !contract.requireToolCall && contract.allowAssistantMessage ? 'assistant_message' : null,
+    contract.allowAskUser ? 'ask_user' : null,
+    contract.allowRenderUi ? 'render_ui' : null,
+    contract.allowPlanExit ? 'plan_exit' : null
+  ].filter((value): value is string => Boolean(value));
+}
+
+export function buildPlannerRequest(
+  state: WorkflowGraphState,
+  contract: WorkflowNodeContract
+): LlmRequest {
+  const allowedOutputs = resolveAllowedOutputs(contract);
+
+  return {
+    messages: [
+      {
+        role: 'system',
+        content: [
+          'You are a strict workflow planner for an agentic ML application.',
+          'Return exactly one JSON object and nothing else.',
+          `Workflow phase: ${state.turn.phase}`,
+          `Current workflow node: ${state.run.currentNode}`,
+          contract.requireToolCall
+            ? 'This node requires an actual tool call. Do not return assistant_message, ask_user, render_ui, or plan_exit.'
+            : contract.allowedTools.length > 0
+              ? 'Choose the single next action that best advances the workflow. tool_call is allowed when another tool step is still needed.'
+              : 'Choose the single next action that best advances the workflow.',
+          contract.allowAssistantMessage
+            ? 'Use assistant_message only when the user is asking for explanation, diagnosis, or advice and no tool is needed.'
+            : 'Do not return assistant_message.',
+          contract.allowAskUser
+            ? 'Use ask_user only when blocked by missing information that the backend cannot infer.'
+            : 'Do not return ask_user.',
+          contract.allowRenderUi
+            ? 'Use render_ui when you can present final structured output for this turn without another tool.'
+            : 'Do not return render_ui.',
+          contract.allowPlanExit
+            ? 'Use plan_exit when the right outcome is a markdown plan artifact rather than a tool call.'
+            : 'Do not return plan_exit.',
+          `Allowed output kinds: ${allowedOutputs.join(', ') || '(none)'}.`,
+          'If you choose tool_call, toolName must be one of the allowed tools and toolArgs must be an object.',
+          'Keep the JSON compact. If you choose assistant_message, keep the message concise and avoid code fences or long markdown.'
+        ].join('\n')
+      },
+      {
+        role: 'user',
+        content: [
+          `User prompt: ${state.turn.prompt?.trim() || 'Continue the current workflow.'}`,
+          '',
+          'Workflow state:',
+          summarizeWorkflowState(state),
+          '',
+          'Workflow context:',
+          summarizeMessages(state.request?.messages ?? []),
+          '',
+          'Allowed tools:',
+          summarizeTools(contract),
+          '',
+          'Recent tool results:',
+          summarizeToolResults(state)
+        ].join('\n')
+      }
+    ],
+    responseMimeType: 'application/json',
+    maxOutputTokens: 900,
+    reasoningEffort: resolvePlannerReasoningEffort()
+  };
+}
+
+export function buildPlannerRepairRequest(
+  raw: string,
+  state: WorkflowGraphState,
+  contract: WorkflowNodeContract
+): LlmRequest {
+  return {
+    messages: [
+      {
+        role: 'system',
+        content: [
+          'You repair malformed workflow planner outputs.',
+          'Return exactly one valid JSON object and nothing else.',
+          `Workflow phase: ${state.turn.phase}`,
+          `Current workflow node: ${state.run.currentNode}`,
+          `Allowed output kinds: ${resolveAllowedOutputs(contract).join(', ') || '(none)'}.`,
+          contract.requireToolCall
+            ? 'The repaired response must be a tool_call.'
+            : 'The repaired response may be any allowed output kind.',
+          'Preserve the original intent as closely as possible, but make the JSON valid and schema-compliant.'
+        ].join('\n')
+      },
+      {
+        role: 'user',
+        content: [
+          'Repair this malformed planner output into valid JSON:',
+          truncate(raw.trim(), 4_000),
+          '',
+          'Allowed tools:',
+          summarizeTools(contract)
+        ].join('\n')
+      }
+    ],
+    responseMimeType: 'application/json',
+    maxOutputTokens: 700,
+    reasoningEffort: 'minimal'
+  };
+}

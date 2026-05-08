@@ -1,0 +1,281 @@
+image: node:22-slim
+
+variables:
+  NODE_OPTIONS: --max-old-space-size=4096
+  VERCEL_CLI_VERSION: "51.2.1"
+  # Landing production deploys from main. sprint11 was the transitional
+  # canonical branch during demo-day (!150 2026-04-20); the sprint11 tree
+  # was merged into main via !152 on 2026-04-20 and main is now the
+  # long-lived canonical source for the Vercel prod alias
+  # (agentic-automl.vercel.app).
+  LANDING_VERCEL_PROD_BRANCH: "main"
+
+stages:
+  - noop
+  - install
+  - check
+  - build
+  - test
+  - deploy
+
+.run_on_branch_or_mr:
+  # HEAVY CI runs on:
+  #   - tags
+  #   - pushes to parent branches: main / sprint11 / sprint12 / work/*
+  #   - MRs targeting main or sprint11 (the "final merge" gates)
+  #
+  # Intentionally NOT firing heavy CI on MRs targeting sprint12 — sprint12 is the
+  # active parent for fix/issue-* sub-branches and iteration speed matters more
+  # than per-MR validation. The post-merge push pipeline on sprint12 catches
+  # breakage; if it goes red, revert the bad sub-branch MR. Same trade-off the
+  # repo historically accepted for fix/* work pre-sprint11.
+  #
+  # MRs into sprint12 still get the trivial `noop` job (covered by its own rule
+  # below) so the "pipelines must succeed before merge" gate is satisfied.
+  rules:
+    - if: '$CI_COMMIT_TAG'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_COMMIT_BRANCH == "sprint11"'
+    - if: '$CI_COMMIT_BRANCH == "sprint12"'
+    - if: '$CI_COMMIT_BRANCH =~ /^work\//'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^(main|sprint11)$/'
+
+# Trivial success-emitter. GitLab "Pipelines must succeed before merge"
+# requires a passing pipeline; a pipeline with status=skipped does NOT
+# satisfy it. This no-op guarantees every MR has one green job in ~5s
+# (alpine pull + echo) so fix/* → work/** MRs aren't blocked.
+noop:
+  stage: noop
+  image: alpine:3.20
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - echo "noop — satisfies 'pipelines must succeed' when the heavy jobs are rule-skipped"
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH'
+    - if: '$CI_COMMIT_TAG'
+
+install:
+  extends: .run_on_branch_or_mr
+  stage: install
+  script:
+    - npm run install:all
+  cache:
+    - key:
+        files:
+          - package-lock.json
+          - backend/package-lock.json
+      paths:
+        - backend/node_modules/
+      policy: pull-push
+    - key:
+        files:
+          - frontend/package-lock.json
+          - testing/package-lock.json
+      paths:
+        - frontend/node_modules/
+        - testing/node_modules/
+      policy: pull-push
+    - key:
+        files:
+          - landing/package-lock.json
+          - video/package-lock.json
+      paths:
+        - landing/node_modules/
+        - video/node_modules/
+      policy: pull-push
+    - key:
+        files:
+          - poster/package-lock.json
+          - booklet/package-lock.json
+      paths:
+        - poster/node_modules/
+        - booklet/node_modules/
+      policy: pull-push
+
+assets:check:
+  stage: check
+  script:
+    - npm run install:all
+    - npm run assets:check
+  cache:
+    - key:
+        files:
+          - package-lock.json
+          - backend/package-lock.json
+      paths:
+        - backend/node_modules/
+      policy: pull
+    - key:
+        files:
+          - frontend/package-lock.json
+          - testing/package-lock.json
+      paths:
+        - frontend/node_modules/
+        - testing/node_modules/
+      policy: pull
+    - key:
+        files:
+          - landing/package-lock.json
+          - video/package-lock.json
+      paths:
+        - landing/node_modules/
+        - video/node_modules/
+      policy: pull
+    - key:
+        files:
+          - poster/package-lock.json
+          - booklet/package-lock.json
+      paths:
+        - poster/node_modules/
+        - booklet/node_modules/
+      policy: pull
+  rules:
+    - changes:
+        - .gitlab-ci.yml
+        - package.json
+        - package-lock.json
+        - video/**/*
+        - poster/**/*
+        - booklet/**/*
+
+lint:
+  extends: .run_on_branch_or_mr
+  stage: check
+  script:
+    - test -x backend/node_modules/.bin/eslint || npm --prefix backend ci --no-audit --no-fund
+    - test -x frontend/node_modules/.bin/eslint || npm --prefix frontend ci --no-audit --no-fund
+    - npm run lint
+  cache:
+    key:
+      files:
+        - backend/package-lock.json
+        - frontend/package-lock.json
+    paths:
+      - backend/node_modules/
+      - frontend/node_modules/
+      - video/node_modules/
+    policy: pull
+
+build:
+  extends: .run_on_branch_or_mr
+  stage: build
+  script:
+    - test -x backend/node_modules/.bin/tsc || npm --prefix backend ci --no-audit --no-fund
+    - test -x frontend/node_modules/.bin/tsc || npm --prefix frontend ci --no-audit --no-fund
+    - npm run build
+  cache:
+    key:
+      files:
+        - backend/package-lock.json
+        - frontend/package-lock.json
+    paths:
+      - backend/node_modules/
+      - frontend/node_modules/
+    policy: pull
+
+test:
+  extends: .run_on_branch_or_mr
+  stage: test
+  script:
+    - test -x backend/node_modules/.bin/vitest || npm --prefix backend ci --no-audit --no-fund
+    - test -x frontend/node_modules/.bin/vitest || npm --prefix frontend ci --no-audit --no-fund
+    - npm run test
+  cache:
+    key:
+      files:
+        - backend/package-lock.json
+        - frontend/package-lock.json
+    paths:
+      - backend/node_modules/
+      - frontend/node_modules/
+    policy: pull
+
+landing:build:
+  extends: .run_on_branch_or_mr
+  stage: build
+  # Historically this job was `allow_failure: true` because its vitest
+  # suite had stale demo-copy assertions. The 2026-04-20 demo-day plan
+  # Phase 6 cleaned those up (skipped the removed-guard apiFetch tests,
+  # dropped brittle demo-copy regexes, aligned the login-page spec with
+  # the current redirect-to-app behaviour) so landing:build stays green
+  # on healthy runs. The allow_failure flag is now gone — a broken
+  # landing BLOCKS the cascade, giving us a real signal before Vercel
+  # gets the tree.
+  script:
+    - npm --prefix landing ci
+    - npm --prefix landing run typecheck
+    - npm --prefix landing run build
+    - npm --prefix landing run test
+    - npm --prefix landing run lint
+  cache:
+    key:
+      files:
+        - backend/package-lock.json
+        - frontend/package-lock.json
+    paths:
+      - frontend/node_modules/
+      - landing/node_modules/
+    policy: pull-push
+  artifacts:
+    paths:
+      - landing/dist/
+    expire_in: 1 week
+
+landing:vercel:preview:
+  stage: deploy
+  allow_failure: true
+  script:
+    - npx --yes vercel@"$VERCEL_CLI_VERSION" pull --yes --environment=preview --git-branch="$CI_COMMIT_REF_NAME" --token="$VERCEL_TOKEN"
+    - npx --yes vercel@"$VERCEL_CLI_VERSION" build --yes --target=preview --token="$VERCEL_TOKEN"
+    - npx --yes vercel@"$VERCEL_CLI_VERSION" deploy --prebuilt --yes --target=preview --token="$VERCEL_TOKEN" -m gitlabDeployment="1" -m gitlabCommitRef="$CI_COMMIT_REF_NAME" -m gitlabCommitSha="$CI_COMMIT_SHA"
+  rules:
+    - if: '$VERCEL_TOKEN && $VERCEL_ORG_ID && $VERCEL_PROJECT_ID && $CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH && $CI_COMMIT_BRANCH != $LANDING_VERCEL_PROD_BRANCH'
+      changes:
+        - .gitlab-ci.yml
+        - package.json
+        - package-lock.json
+        - vercel.json
+        - scripts/patch-csp-deps.mjs
+        - landing/**/*
+        - frontend/src/**/*
+
+landing:vercel:production:
+  stage: deploy
+  script:
+    - npx --yes vercel@"$VERCEL_CLI_VERSION" pull --yes --environment=production --token="$VERCEL_TOKEN"
+    - npx --yes vercel@"$VERCEL_CLI_VERSION" build --yes --target=production --token="$VERCEL_TOKEN"
+    - |
+      set -euo pipefail
+
+      # Vercel CLI output is not reliably single-line JSON even with --format json.
+      # Extract the production URL from the human-readable "Production:" line instead.
+      DEPLOYMENT_URL="$(
+        npx --yes vercel@"$VERCEL_CLI_VERSION" deploy --prebuilt --yes --target=production --token="$VERCEL_TOKEN" \
+          -m gitlabDeployment="1" \
+          -m gitlabCommitRef="$CI_COMMIT_REF_NAME" \
+          -m gitlabCommitSha="$CI_COMMIT_SHA" \
+          2>&1 | tee /tmp/vercel-deploy.log \
+          | awk '/^Production: https:\/\//{url=$2} END{print url}' \
+          | sed -E 's#^https?://##'
+      )"
+
+      if [ -z "$DEPLOYMENT_URL" ]; then
+        echo "Failed to extract DEPLOYMENT_URL from Vercel output" >&2
+        tail -n 120 /tmp/vercel-deploy.log || true
+        exit 1
+      fi
+
+      echo "Deployment URL: $DEPLOYMENT_URL"
+      npx --yes vercel@"$VERCEL_CLI_VERSION" alias set "$DEPLOYMENT_URL" agentic-automl.vercel.app --token="$VERCEL_TOKEN" --non-interactive
+  rules:
+    - if: '$VERCEL_TOKEN && $VERCEL_ORG_ID && $VERCEL_PROJECT_ID && $CI_COMMIT_BRANCH == $LANDING_VERCEL_PROD_BRANCH'
+      changes:
+        - .gitlab-ci.yml
+        - package.json
+        - package-lock.json
+        - vercel.json
+        - scripts/patch-csp-deps.mjs
+        - landing/**/*
+        - frontend/src/**/*

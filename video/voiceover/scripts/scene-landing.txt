@@ -1,0 +1,9 @@
+{{HERO}} **The fastest way to build production ML models**, agentically. You upload the data, describe the goal, and walk away.
+
+{{PHASES}} The landing page is the product in miniature. Seven phases — **ingest, explore, preprocess, engineer, train, experiments, deploy** — and the agent works each one in order.
+
+{{NOTEBOOK}} What you get back is a real notebook. **Pandas, sklearn, Plotly** — every cell editable, every decision on the record.
+
+{{PILLARS}} Underneath, three things carry the weight. A **Docker sandbox** that isolates execution. **Optuna** that finds the winning model. **LangGraph** that keeps the sub-agents in lockstep.
+
+{{CLOSER}} Stop babysitting your notebooks.

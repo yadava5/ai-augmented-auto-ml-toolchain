@@ -1,0 +1,405 @@
+---
+// Sticky frosted navigation bar.
+// Brand: logo + wordmark that loads as "Agentic AutoML ToolChain"
+// and collapses to "AutoML" after 1.6s. The brand's width is reserved
+// to the long form so nav links / CTA on the right never shift.
+import ThemeToggleIsland from './ThemeToggleIsland';
+import { getAppLoginUrl } from '@/lib/appLinks';
+
+const navLinks = [
+  { label: 'Quick Look',   href: '#product' },
+  { label: 'Features',     href: '#features' },
+  { label: 'How it works', href: '#how-it-works' },
+];
+const appLoginUrl = getAppLoginUrl();
+---
+
+<header class="nav-root">
+  <div class="nav-inner">
+    <a href="#top" class="nav-brand">
+      <svg
+        viewBox="0 0 32 32"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        class="nav-logo"
+        aria-hidden="true"
+      >
+        <circle cx="16" cy="4" r="3" fill="currentColor" />
+        <path d="M14 8L5 26" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" />
+        <path d="M18 8L27 26" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" opacity="0.4" />
+        <path d="M9 18H19.5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" />
+      </svg>
+      <span class="nav-wordmark" aria-label="Agentic AutoML">
+        <span class="nav-wordmark-long">Agentic AutoML ToolChain</span>
+        <span class="nav-wordmark-short" aria-hidden="true">AutoML</span>
+      </span>
+    </a>
+
+    <nav class="nav-links" aria-label="Primary">
+      {navLinks.map((link) => (
+        <a href={link.href}>{link.label}</a>
+      ))}
+    </nav>
+
+    <div class="nav-right">
+      <a href={appLoginUrl} class="nav-signin">Sign In</a>
+      <a href={appLoginUrl} class="nav-cta">Get Started</a>
+    </div>
+
+    <button
+      class="nav-hamburger"
+      aria-label="Open menu"
+      aria-expanded="false"
+      aria-controls="mobile-nav"
+    >
+      <svg class="hamburger-icon hamburger-open" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <line x1="3" y1="5" x2="17" y2="5" />
+        <line x1="3" y1="10" x2="17" y2="10" />
+        <line x1="3" y1="15" x2="17" y2="15" />
+      </svg>
+      <svg class="hamburger-icon hamburger-close" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <line x1="4" y1="4" x2="16" y2="16" />
+        <line x1="16" y1="4" x2="4" y2="16" />
+      </svg>
+    </button>
+  </div>
+
+  <div class="nav-theme-toggle">
+    <ThemeToggleIsland client:only="react" />
+  </div>
+
+  <!-- Mobile overlay -->
+  <div id="mobile-nav" class="mobile-nav" aria-hidden="true">
+    <nav class="mobile-nav-links" aria-label="Mobile navigation">
+      {navLinks.map((link) => (
+        <a href={link.href}>{link.label}</a>
+      ))}
+    </nav>
+    <div class="mobile-nav-divider"></div>
+    <div class="mobile-nav-actions">
+      <a href={appLoginUrl} class="mobile-nav-signin">Sign In</a>
+      <a href={appLoginUrl} class="mobile-nav-cta">Get Started</a>
+    </div>
+    <div class="mobile-nav-theme">
+      <span class="mobile-nav-theme-label">Theme</span>
+      <ThemeToggleIsland client:only="react" />
+    </div>
+  </div>
+</header>
+
+<script>
+  {
+    const btn = document.querySelector<HTMLButtonElement>('.nav-hamburger');
+    const overlay = document.getElementById('mobile-nav');
+    if (btn && overlay) {
+      btn.addEventListener('click', () => {
+        const expanded = btn.getAttribute('aria-expanded') === 'true';
+        btn.setAttribute('aria-expanded', String(!expanded));
+        btn.setAttribute('aria-label', expanded ? 'Open menu' : 'Close menu');
+        overlay.setAttribute('aria-hidden', String(expanded));
+        document.documentElement.classList.toggle('mobile-nav-open', !expanded);
+      });
+      overlay.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
+        if (target.tagName === 'A') {
+          btn.setAttribute('aria-expanded', 'false');
+          btn.setAttribute('aria-label', 'Open menu');
+          overlay.setAttribute('aria-hidden', 'true');
+          document.documentElement.classList.remove('mobile-nav-open');
+        }
+      });
+    }
+  }
+</script>
+
+<style>
+  .nav-root {
+    --nav-height: 72px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    height: var(--nav-height);
+    background-image: linear-gradient(
+      var(--nav-glass-1) 0%,
+      var(--nav-glass-2) 100%
+    );
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 0.8px solid hsl(var(--border));
+  }
+
+  .nav-inner {
+    max-width: 1280px;
+    height: 100%;
+    margin: 0 auto;
+    padding: 0 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 40px;
+  }
+
+  /* ── Brand: logo + wordmark ── */
+  .nav-brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+    transition: opacity var(--dur-fast) var(--ease-linear-default);
+  }
+  .nav-brand:hover { opacity: 0.8; }
+
+  .nav-logo {
+    width: 24px;
+    height: 24px;
+    color: var(--text);
+    flex-shrink: 0;
+  }
+
+  /* Width is reserved to the long form via the inline-block spacer (long).
+     The short form is positioned absolutely on top and cross-fades in after
+     a delay. Nothing on the right moves — no layout shift. */
+  .nav-wordmark {
+    position: relative;
+    display: inline-block;
+    font-family: 'Inter Variable', sans-serif;
+    font-size: 16px;
+    font-weight: 590;
+    color: var(--text);
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    line-height: 1.2;
+  }
+  .nav-wordmark-long,
+  .nav-wordmark-short {
+    display: inline-block;
+    white-space: nowrap;
+  }
+  .nav-wordmark-long {
+    animation: nav-brand-long-out 700ms var(--ease-out-quart) 1600ms forwards;
+    transform-origin: left center;
+  }
+  .nav-wordmark-short {
+    position: absolute;
+    left: 0;
+    top: 0;
+    opacity: 0;
+    transform: translateX(-2px);
+    animation: nav-brand-short-in 700ms var(--ease-out-quart) 2000ms forwards;
+  }
+
+  @keyframes nav-brand-long-out {
+    from { opacity: 1; filter: blur(0); }
+    to   { opacity: 0; filter: blur(4px); }
+  }
+  @keyframes nav-brand-short-in {
+    from { opacity: 0; transform: translateX(-2px); filter: blur(4px); }
+    to   { opacity: 1; transform: translateX(0);    filter: blur(0);   }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .nav-wordmark-long  { animation: none; opacity: 0; }
+    .nav-wordmark-short { animation: none; opacity: 1; transform: none; filter: none; }
+  }
+
+  .nav-links {
+    display: flex;
+    gap: 8px;
+  }
+
+  .nav-links a {
+    font-family: 'Geist Mono Variable', ui-monospace, monospace;
+    font-size: 14.5px;
+    font-weight: 450;
+    color: var(--text);
+    text-decoration: none;
+    padding: 0 12px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    border-radius: 4px;
+    opacity: 0.82;
+    transition: opacity var(--dur-fast) var(--ease-linear-default),
+                color var(--dur-fast) var(--ease-linear-default);
+  }
+  .nav-links a:hover { opacity: 1; }
+
+  /* ── Right-side cluster: Sign In + CTA ── */
+  .nav-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  /* Theme toggle anchored to the viewport's top-right corner — intentionally
+     outside .nav-inner's 1280px centered cluster. */
+  .nav-theme-toggle {
+    position: absolute;
+    top: 0;
+    right: 32px;
+    height: var(--nav-height);
+    display: flex;
+    align-items: center;
+  }
+
+  /* ── Shared action link base ── */
+  .nav-signin,
+  .mobile-nav-signin {
+    font-family: 'Inter Variable', sans-serif;
+    font-size: 14px;
+    font-weight: 510;
+    color: var(--text-muted);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    transition: color var(--dur-fast) var(--ease-linear-default);
+  }
+  .nav-cta,
+  .mobile-nav-cta {
+    font-family: 'Inter Variable', sans-serif;
+    font-size: 14px;
+    font-weight: 510;
+    color: var(--cta-text);
+    text-decoration: none;
+    background: var(--cta-bg-grad);
+    padding: 0 16px;
+    display: inline-flex;
+    align-items: center;
+    border-radius: 6px;
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.06),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5),
+      0 1px 2px rgba(0, 0, 0, 0.12);
+  }
+
+  /* ── Desktop overrides ── */
+  .nav-signin {
+    height: 32px;
+    padding: 0 4px;
+    border-radius: 4px;
+  }
+  .nav-signin:hover { color: var(--text); }
+
+  .nav-cta {
+    height: 32px;
+    transition: filter 180ms ease,
+                box-shadow 180ms ease;
+  }
+  .nav-cta:hover {
+    filter: brightness(1.08);
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5),
+      0 1px 2px rgba(0, 0, 0, 0.12),
+      0 0 12px rgba(255, 255, 255, 0.08);
+  }
+  .nav-cta:active {
+    filter: brightness(0.96);
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.06),
+      inset 0 1px 0 rgba(255, 255, 255, 0.3),
+      0 0 2px rgba(0, 0, 0, 0.16);
+  }
+
+  /* ── Hamburger button — hidden on desktop ── */
+  .nav-hamburger {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .hamburger-close { display: none; }
+  :global(.mobile-nav-open) .hamburger-open { display: none; }
+  :global(.mobile-nav-open) .hamburger-close { display: block; }
+
+  /* ── Mobile overlay ── */
+  .mobile-nav {
+    display: none;
+    position: absolute;
+    top: var(--nav-height);
+    left: 0;
+    right: 0;
+    background-image: linear-gradient(
+      var(--nav-glass-1) 0%,
+      var(--nav-glass-2) 100%
+    );
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 0.8px solid hsl(var(--border));
+    padding: 16px 24px 24px;
+    flex-direction: column;
+  }
+  .mobile-nav-links {
+    display: flex;
+    flex-direction: column;
+  }
+  .mobile-nav-links a {
+    font-family: 'Geist Mono Variable', ui-monospace, monospace;
+    font-size: 15px;
+    font-weight: 450;
+    color: var(--text);
+    text-decoration: none;
+    padding: 12px 0;
+    opacity: 0.82;
+    transition: opacity var(--dur-fast) var(--ease-linear-default);
+  }
+  .mobile-nav-links a:hover { opacity: 1; }
+  .mobile-nav-divider {
+    height: 0.8px;
+    background: hsl(var(--border));
+    margin: 8px 0 16px;
+  }
+  .mobile-nav-actions {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  /* ── Mobile overrides (base inherited from shared rules above) ── */
+  .mobile-nav-signin {
+    height: 36px;
+    padding: 0 16px;
+    border-radius: 6px;
+    border: 0.8px solid hsl(var(--border));
+  }
+  .mobile-nav-signin:hover { color: var(--text); }
+  .mobile-nav-cta {
+    height: 36px;
+    flex: 1;
+    justify-content: center;
+  }
+  .mobile-nav-theme {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .mobile-nav-theme-label {
+    font-family: 'Geist Mono Variable', ui-monospace, monospace;
+    font-size: 12px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  /* ── Responsive: collapse nav at 768px ── */
+  @media (max-width: 768px) {
+    .nav-inner { padding: 0 16px; gap: 16px; }
+    .nav-links { display: none; }
+    .nav-right { display: none; }
+    .nav-theme-toggle { display: none; }
+    .nav-hamburger { display: flex; }
+    .mobile-nav[aria-hidden='false'] { display: flex; }
+  }
+
+  /* Lock body scroll when mobile nav is open */
+  :global(.mobile-nav-open) { overflow: hidden; }
+</style>

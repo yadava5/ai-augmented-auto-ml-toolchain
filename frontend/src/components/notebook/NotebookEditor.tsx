@@ -1,0 +1,300 @@
+/**
+ * NotebookEditor - Notebook cell list with real-time sync.
+ *
+ * Renders cells in a scrollable area with inline insert-cell controls.
+ * Toolbar and notebook management are handled by NotebookToolbar.
+ */
+
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Button } from '@/components/ui/button';
+import { NotebookCellComponent } from './NotebookCell';
+import { NotebookMarkdownCell } from './NotebookMarkdownCell';
+import { NotebookInsertCellRow } from './NotebookInsertCellRow';
+import { useNotebookStore } from '@/stores/notebookStore';
+import { useInsightNavigationStore } from '@/stores/insightNavigationStore';
+import { interruptKernel } from '@/lib/api/notebooks';
+import { Loader2, Code, Type } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { scrollToRadixElement } from '@/lib/scrollUtils';
+import type { NotebookCellType } from '@/types/notebook';
+import { buildRenderItems, getSectionRange } from './notebookEditorUtils';
+
+export interface NotebookEditorHandle {
+  scrollToHeading: (slug: string) => void;
+}
+
+interface NotebookEditorProps {
+  projectId: string;
+  notebookId?: string;
+  className?: string;
+}
+
+export const NotebookEditor = forwardRef<NotebookEditorHandle, NotebookEditorProps>(
+  function NotebookEditor({ projectId, notebookId, className }, ref) {
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  useImperativeHandle(ref, () => ({
+    scrollToHeading: (slug: string) => scrollToRadixElement(scrollAreaRef.current, slug),
+  }), []);
+
+  const notebook = useNotebookStore((state) => state.notebook);
+  const rawCells = useNotebookStore((state) => state.cells);
+  const cells = useMemo(
+    () => notebookId ? rawCells.filter((c) => c.notebookId === notebookId) : rawCells,
+    [rawCells, notebookId]
+  );
+  const isLoading = useNotebookStore((state) => state.isLoading);
+  const isSaving = useNotebookStore((state) => state.isSaving);
+  const createCell = useNotebookStore((state) => state.createCell);
+  const updateCell = useNotebookStore((state) => state.updateCell);
+  const deleteCell = useNotebookStore((state) => state.deleteCell);
+  const runCell = useNotebookStore((state) => state.runCell);
+  const isCellLocked = useNotebookStore((state) => state.isCellLocked);
+  const getCellLockOwner = useNotebookStore((state) => state.getCellLockOwner);
+  const suggestedCellIds = useNotebookStore((state) => state.suggestedCellIds);
+  const streamingCellIds = useNotebookStore((state) => state.streamingCellIds);
+  const streamErrors = useNotebookStore((state) => state.streamErrors);
+  const acceptSuggestedCell = useNotebookStore((state) => state.acceptSuggestedCell);
+  const rejectSuggestedCell = useNotebookStore((state) => state.rejectSuggestedCell);
+  const cancelSuggestedCellStream = useNotebookStore((state) => state.cancelSuggestedCellStream);
+  const startSuggestedCellStream = useNotebookStore((state) => state.startSuggestedCellStream);
+  const activeNotebookId = useNotebookStore((state) => state.activeNotebookId);
+  const reorderCells = useNotebookStore((state) => state.reorderCells);
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+
+  // Consume pending insight context (cross-phase navigation from EDA → Notebook)
+  const pendingInsightContext = useInsightNavigationStore((state) => state.pendingInsightContext);
+  const clearPendingContext = useInsightNavigationStore((state) => state.clearPendingContext);
+  const insightFiredRef = useRef(false);
+
+  useEffect(() => {
+    if (pendingInsightContext && activeNotebookId && !insightFiredRef.current) {
+      insightFiredRef.current = true;
+      startSuggestedCellStream(activeNotebookId, pendingInsightContext);
+      clearPendingContext();
+    }
+    if (!pendingInsightContext) {
+      insightFiredRef.current = false;
+    }
+  }, [pendingInsightContext, activeNotebookId, startSuggestedCellStream, clearPendingContext]);
+
+  const handleAddCell = useCallback(async (cellType: NotebookCellType = 'code') => {
+    await createCell({ content: '', cellType });
+  }, [createCell]);
+
+  const handleInsertCell = useCallback(async (position: number, cellType: NotebookCellType) => {
+    await createCell({ content: '', cellType, position });
+  }, [createCell]);
+
+  const handleCellContentChange = useCallback(
+    async (cellId: string, content: string) => {
+      await updateCell(cellId, { content });
+    },
+    [updateCell]
+  );
+
+  const handleCellDelete = useCallback(
+    async (cellId: string) => {
+      await deleteCell(cellId);
+    },
+    [deleteCell]
+  );
+
+  const handleCellRun = useCallback(
+    async (cellId: string) => {
+      await runCell(cellId, projectId);
+    },
+    [runCell, projectId]
+  );
+
+  const handleCellInterrupt = useCallback(
+    async (cellId: string) => {
+      try {
+        await interruptKernel(cellId, projectId);
+      } catch (error) {
+        console.error('[NotebookEditor] Failed to interrupt kernel:', error);
+      }
+    },
+    [projectId]
+  );
+
+  // --- Cell reordering ---
+  const moveInFlightRef = useRef(false);
+
+  useEffect(() => {
+    const markdownIds = new Set(
+      cells
+        .filter((cell) => cell.cellType === 'markdown')
+        .map((cell) => cell.cellId)
+    );
+
+    setCollapsedSections((prev) => {
+      const next = Object.fromEntries(
+        Object.entries(prev).filter(([cellId]) => markdownIds.has(cellId))
+      );
+      const hasChanged = Object.keys(prev).length !== Object.keys(next).length;
+      return hasChanged ? next : prev;
+    });
+  }, [cells]);
+
+  const renderItems = useMemo(
+    () => buildRenderItems(cells, collapsedSections),
+    [cells, collapsedSections]
+  );
+
+  const toggleSectionCollapse = useCallback((cellId: string) => {
+    setCollapsedSections((prev) => ({
+      ...prev,
+      [cellId]: !prev[cellId]
+    }));
+  }, []);
+
+  const handleMoveCell = useCallback(
+    async (cellId: string, direction: 'up' | 'down') => {
+      if (moveInFlightRef.current) return;
+
+      const itemIndex = renderItems.findIndex((ri) => ri.cell.cellId === cellId);
+      if (itemIndex === -1) return;
+
+      const targetIndex = direction === 'up' ? itemIndex - 1 : itemIndex + 1;
+      if (targetIndex < 0 || targetIndex >= renderItems.length) return;
+
+      const targetItem = renderItems[targetIndex];
+      if (suggestedCellIds.has(targetItem.cell.cellId)) return;
+
+      const sourceItem = renderItems[itemIndex];
+      const cellIds = cells.map((c) => c.cellId);
+
+      const sourceRawIndex = cells.findIndex((c) => c.cellId === sourceItem.cell.cellId);
+      const targetRawIndex = cells.findIndex((c) => c.cellId === targetItem.cell.cellId);
+
+      const sourceEnd = sourceItem.isSectionCollapsed
+        ? getSectionRange(cells, sourceRawIndex).end
+        : sourceRawIndex;
+      const targetEnd = targetItem.isSectionCollapsed
+        ? getSectionRange(cells, targetRawIndex).end
+        : targetRawIndex;
+
+      // Swap the two contiguous ranges in the full cellIds array
+      const newIds = [...cellIds];
+      const sourceSlice = newIds.slice(sourceRawIndex, sourceEnd + 1);
+      const targetSlice = newIds.slice(targetRawIndex, targetEnd + 1);
+
+      if (direction === 'up') {
+        newIds.splice(targetRawIndex, targetSlice.length + sourceSlice.length, ...sourceSlice, ...targetSlice);
+      } else {
+        newIds.splice(sourceRawIndex, sourceSlice.length + targetSlice.length, ...targetSlice, ...sourceSlice);
+      }
+
+      moveInFlightRef.current = true;
+      try {
+        await reorderCells(newIds);
+      } finally {
+        moveInFlightRef.current = false;
+      }
+    },
+    [renderItems, cells, reorderCells, suggestedCellIds]
+  );
+
+  return (
+    <div className={cn('flex h-full flex-col', className)}>
+      <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
+        <div className="space-y-3">
+          {isLoading && cells.length === 0 && (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          )}
+
+          {cells.length === 0 && !isLoading && (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <p className="text-sm text-muted-foreground mb-4">
+                No cells yet. Add a cell to get started.
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleAddCell('code')}
+                  className="gap-1.5"
+                  disabled={!notebook}
+                >
+                  <Code className="h-4 w-4" />
+                  Code
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleAddCell('markdown')}
+                  className="gap-1.5"
+                  disabled={!notebook}
+                >
+                  <Type className="h-4 w-4" />
+                  Text
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {renderItems.map((item, idx) => {
+            const isSuggested = suggestedCellIds.has(item.cell.cellId);
+            const canMoveUp = idx > 0 && !isSuggested
+              && !suggestedCellIds.has(renderItems[idx - 1].cell.cellId);
+            const canMoveDown = idx < renderItems.length - 1 && !isSuggested
+              && !suggestedCellIds.has(renderItems[idx + 1].cell.cellId);
+
+            return (
+              <div key={item.cell.cellId}>
+                {item.kind === 'markdown' ? (
+                  <NotebookMarkdownCell
+                    cell={item.cell}
+                    isLocked={isCellLocked(item.cell.cellId)}
+                    lockOwner={getCellLockOwner(item.cell.cellId)}
+                    isCollapsed={item.isSectionCollapsed}
+                    hiddenCodeCount={item.hiddenCodeCount}
+                    onToggleCollapsed={() => toggleSectionCollapse(item.cell.cellId)}
+                    onContentChange={(content) => handleCellContentChange(item.cell.cellId, content)}
+                    onDelete={() => handleCellDelete(item.cell.cellId)}
+                    onMoveUp={() => handleMoveCell(item.cell.cellId, 'up')}
+                    onMoveDown={() => handleMoveCell(item.cell.cellId, 'down')}
+                    canMoveUp={canMoveUp}
+                    canMoveDown={canMoveDown}
+                  />
+                ) : (
+                  <div className={cn(item.nestedUnderMarkdown && 'ml-6 border-l border-border/50 pl-4')}>
+                    <NotebookCellComponent
+                      cell={item.cell}
+                      isLocked={isCellLocked(item.cell.cellId)}
+                      lockOwner={getCellLockOwner(item.cell.cellId)}
+                      projectId={projectId}
+                      onContentChange={(content) => handleCellContentChange(item.cell.cellId, content)}
+                      onDelete={() => handleCellDelete(item.cell.cellId)}
+                      onRun={() => handleCellRun(item.cell.cellId)}
+                      onInterrupt={() => handleCellInterrupt(item.cell.cellId)}
+                      isSuggested={isSuggested}
+                      isStreaming={streamingCellIds.has(item.cell.cellId)}
+                      streamError={streamErrors.get(item.cell.cellId) ?? null}
+                      onAccept={() => acceptSuggestedCell(item.cell.cellId)}
+                      onReject={() => rejectSuggestedCell(item.cell.cellId)}
+                      onCancel={() => cancelSuggestedCellStream(item.cell.cellId)}
+                      onMoveUp={() => handleMoveCell(item.cell.cellId, 'up')}
+                      onMoveDown={() => handleMoveCell(item.cell.cellId, 'down')}
+                      canMoveUp={canMoveUp}
+                      canMoveDown={canMoveDown}
+                    />
+                  </div>
+                )}
+                <NotebookInsertCellRow
+                  position={item.cell.position + 1}
+                  onInsert={handleInsertCell}
+                  disabled={isSaving || !notebook}
+                  className={cn(item.nestedUnderMarkdown && item.kind === 'code' && 'ml-6 pl-4')}
+                />
+              </div>
+            );
+          })}
+        </div>
+      </ScrollArea>
+    </div>
+  );
+});

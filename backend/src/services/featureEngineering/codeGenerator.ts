@@ -1,0 +1,362 @@
+/**
+ * Feature Engineering — Code Generator
+ *
+ * Maps each FeatureMethod to the Python code snippet that implements it.
+ * Consumed by the script builder to assemble the full feature-engineering script.
+ */
+
+import type { FeatureMethod, FeatureSpec } from '../featureEngineering.js';
+
+/* ------------------------------------------------------------------ */
+/*  Helpers                                                           */
+/* ------------------------------------------------------------------ */
+
+export function pyString(value: string): string {
+  return JSON.stringify(value);
+}
+
+export function pyBool(value: unknown, defaultValue = false): string {
+  return value === undefined || value === null
+    ? defaultValue ? 'True' : 'False'
+    : value === true ? 'True' : 'False';
+}
+
+export function numericParam(value: unknown, fallback: number): number {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : fallback;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Codegen map                                                       */
+/* ------------------------------------------------------------------ */
+
+type CodegenFn = (
+  feature: FeatureSpec,
+  dataframeName: string,
+  src: string,
+  dst: string,
+  secondary: string | undefined
+) => string;
+
+export const FEATURE_CODEGEN_MAP = new Map<FeatureMethod, CodegenFn>([
+  ['log_transform', (feature, df, src, dst) => {
+    const offset = numericParam(feature.params?.offset, 1);
+    return `${df}[${dst}] = np.log(${df}[${src}] + ${offset})`;
+  }],
+  ['log1p_transform', (_feature, df, src, dst) =>
+    `${df}[${dst}] = np.log1p(${df}[${src}])`
+  ],
+  ['sqrt_transform', (_feature, df, src, dst) =>
+    `${df}[${dst}] = np.sqrt(${df}[${src}])`
+  ],
+  ['square_transform', (_feature, df, src, dst) =>
+    `${df}[${dst}] = ${df}[${src}] ** 2`
+  ],
+  ['reciprocal_transform', (_feature, df, src, dst) =>
+    `${df}[${dst}] = 1 / ${df}[${src}].replace(0, np.nan)`
+  ],
+  ['box_cox', (_feature, df, src, dst) =>
+    `${df}[${dst}], _ = boxcox(${df}[${src}] + 1e-10)`
+  ],
+  ['yeo_johnson', (_feature, df, src, dst) =>
+    `${df}[${dst}], _ = yeojohnson(${df}[${src}])`
+  ],
+  ['standardize', (_feature, df, src, dst) =>
+    `${df}[${dst}] = (${df}[${src}] - ${df}[${src}].mean()) / ${df}[${src}].std()`
+  ],
+  ['min_max_scale', (feature, df, src, dst) => {
+    const minVal = numericParam(feature.params?.min, 0);
+    const maxVal = numericParam(feature.params?.max, 1);
+    return `_min, _max = ${df}[${src}].min(), ${df}[${src}].max()
+${df}[${dst}] = (${df}[${src}] - _min) / (_max - _min) * ${maxVal - minVal} + ${minVal}`;
+  }],
+  ['robust_scale', (_feature, df, src, dst) =>
+    `_median = ${df}[${src}].median()
+_q1, _q3 = ${df}[${src}].quantile(0.25), ${df}[${src}].quantile(0.75)
+${df}[${dst}] = (${df}[${src}] - _median) / (_q3 - _q1)`
+  ],
+  ['max_abs_scale', (_feature, df, src, dst) =>
+    `${df}[${dst}] = ${df}[${src}] / ${df}[${src}].abs().max()`
+  ],
+  ['bucketize', (feature, df, src, dst) => {
+    const bins = numericParam(feature.params?.bins, 5);
+    return `${df}[${dst}] = pd.cut(${df}[${src}], bins=${bins}, labels=False)`;
+  }],
+  ['quantile_bin', (feature, df, src, dst) => {
+    const quantiles = numericParam(feature.params?.quantiles, 4);
+    return `${df}[${dst}] = pd.qcut(${df}[${src}], q=${quantiles}, labels=False, duplicates='drop')`;
+  }],
+  ['one_hot_encode', (feature, df, src, dst) => {
+    const dropFirst = pyBool(feature.params?.drop_first, false);
+    return `_dummies = pd.get_dummies(${df}[${src}], prefix=${dst}, drop_first=${dropFirst})
+${df} = pd.concat([${df}, _dummies], axis=1)`;
+  }],
+  ['label_encode', (_feature, df, src, dst) =>
+    `${df}[${dst}] = ${df}[${src}].astype('category').cat.codes`
+  ],
+  ['target_encode', (feature, df, src, dst) => {
+    const targetColumn = feature.params?.targetColumn ? pyString(String(feature.params.targetColumn)) : undefined;
+    const smoothing = numericParam(feature.params?.smoothing, 1);
+    return `_target = ${targetColumn}
+_global_mean = ${df}[_target].mean()
+_stats = ${df}.groupby(${src})[_target].agg(['mean', 'count'])
+_smooth = (_stats['mean'] * _stats['count'] + _global_mean * ${smoothing}) / (_stats['count'] + ${smoothing})
+${df}[${dst}] = ${df}[${src}].map(_smooth)`;
+  }],
+  ['frequency_encode', (feature, df, src, dst) => {
+    const normalize = pyBool(feature.params?.normalize, true);
+    return normalize === 'True'
+      ? `_counts = ${df}[${src}].value_counts(normalize=True)
+${df}[${dst}] = ${df}[${src}].map(_counts)`
+      : `_counts = ${df}[${src}].value_counts()
+${df}[${dst}] = ${df}[${src}].map(_counts)`;
+  }],
+  ['binary_encode', (feature, df, src) => {
+    const prefix = pyString(feature.featureName);
+    return `_series = ${df}[${src}].astype('category')
+_codes = _series.cat.codes
+_codes = _codes.where(_codes >= 0, 0)
+_max = int(_codes.max()) if len(_codes) else 0
+_bits = int(np.ceil(np.log2(_max + 1))) if _max > 0 else 1
+for _i in range(_bits):
+    ${df}[${prefix} + '_bin' + str(_i)] = ((_codes >> _i) & 1).astype(int)`;
+  }],
+  ['extract_year', (_feature, df, src, dst) =>
+    `${df}[${dst}] = pd.to_datetime(${df}[${src}]).dt.year`
+  ],
+  ['extract_month', (_feature, df, src, dst) =>
+    `${df}[${dst}] = pd.to_datetime(${df}[${src}]).dt.month`
+  ],
+  ['extract_day', (_feature, df, src, dst) =>
+    `${df}[${dst}] = pd.to_datetime(${df}[${src}]).dt.day`
+  ],
+  ['extract_weekday', (_feature, df, src, dst) =>
+    `${df}[${dst}] = pd.to_datetime(${df}[${src}]).dt.weekday`
+  ],
+  ['extract_hour', (_feature, df, src, dst) =>
+    `${df}[${dst}] = pd.to_datetime(${df}[${src}]).dt.hour`
+  ],
+  ['cyclical_encode', (feature, df, src) => {
+    const periodKey = String(feature.params?.period ?? 'month');
+    const periodMap: Record<string, { attr: string; period: number }> = {
+      hour: { attr: 'hour', period: 24 },
+      weekday: { attr: 'weekday', period: 7 },
+      month: { attr: 'month', period: 12 },
+      day_of_year: { attr: 'dayofyear', period: 365 }
+    };
+    const mapping = periodMap[periodKey] ?? periodMap.month;
+    const prefix = pyString(feature.featureName);
+    return `_val = pd.to_datetime(${df}[${src}]).dt.${mapping.attr}
+${df}[${prefix} + '_sin'] = np.sin(2 * np.pi * _val / ${mapping.period})
+${df}[${prefix} + '_cos'] = np.cos(2 * np.pi * _val / ${mapping.period})`;
+  }],
+  ['time_since', (feature, df, src, dst) => {
+    const unitMap: Record<string, string> = {
+      days: 'D',
+      hours: 'h',
+      weeks: 'W',
+      months: 'M'
+    };
+    const unit = unitMap[String(feature.params?.unit ?? 'days')] ?? 'D';
+    return `${df}[${dst}] = (pd.Timestamp.now() - pd.to_datetime(${df}[${src}])) / np.timedelta64(1, '${unit}')`;
+  }],
+  ['polynomial', (feature, df, src) => {
+    const degree = Math.max(2, Math.round(numericParam(feature.params?.degree, 2)));
+    const prefix = pyString(feature.featureName);
+    return `for _i in range(2, ${degree + 1}):
+    ${df}[${prefix} + '_pow' + str(_i)] = ${df}[${src}] ** _i`;
+  }],
+  ['ratio', (_feature, df, src, dst, secondary) => {
+    if (!secondary) return '# Missing secondary column for ratio';
+    return `${df}[${dst}] = ${df}[${src}] / ${df}[${secondary}].replace(0, np.nan)`;
+  }],
+  ['difference', (_feature, df, src, dst, secondary) => {
+    if (!secondary) return '# Missing secondary column for difference';
+    return `${df}[${dst}] = ${df}[${src}] - ${df}[${secondary}]`;
+  }],
+  ['product', (_feature, df, src, dst, secondary) => {
+    if (!secondary) return '# Missing secondary column for product';
+    return `${df}[${dst}] = ${df}[${src}] * ${df}[${secondary}]`;
+  }],
+  ['text_length', (_feature, df, src, dst) =>
+    `${df}[${dst}] = ${df}[${src}].astype(str).str.len()`
+  ],
+  ['word_count', (_feature, df, src, dst) =>
+    `${df}[${dst}] = ${df}[${src}].astype(str).str.split().str.len()`
+  ],
+  ['contains_pattern', (feature, df, src, dst) => {
+    const pattern = pyString(String(feature.params?.pattern ?? ''));
+    const caseSensitive = pyBool(feature.params?.case_sensitive, false);
+    return `${df}[${dst}] = ${df}[${src}].astype(str).str.contains(${pattern}, case=${caseSensitive}, regex=False).astype(int)`;
+  }],
+  ['missing_indicator', (_feature, df, src, dst) =>
+    `${df}[${dst}] = ${df}[${src}].isna().astype(int)`
+  ]
+]);
+
+/* ------------------------------------------------------------------ */
+/*  LLM-authored code handling                                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Determine whether LLM-authored feature code is ACTIONABLE — i.e., it
+ * contains at least one real Python statement that references the `df`
+ * dataframe. This is a cheap sanity gate that rejects placeholder comments
+ * like `# Placeholder: materialization deferred until proposal confirmation`
+ * which the LLM occasionally hallucinates and which Python happily "runs"
+ * as a no-op, producing success signals all the way through the lifecycle.
+ *
+ * NOTE: This is a sanity gate, NOT a correctness guarantee. Code can still
+ * reference `df` without creating new columns (e.g., `print(df.shape)`).
+ * The apply-pipeline degenerate-feature guard is the real backstop for
+ * "code ran but produced nothing useful".
+ *
+ * Implementation detail: the comment-stripping regex inside strings is
+ * cosmetically imperfect (a `#` inside a string literal will truncate the
+ * line) but since we only use the result for a boolean check — never to
+ * rewrite the code — it is functionally safe.
+ */
+export function isActionableFeatureCode(code: string | undefined | null): boolean {
+  if (!code || typeof code !== 'string') return false;
+  const stripped = code
+    .split(/\r?\n/)
+    .map((line) => line.replace(/#.*$/, '').trim())
+    .filter((line) => line.length > 0)
+    .join('\n');
+  if (stripped.length === 0) return false;
+  // Must reference the canonical dataframe variable. Word boundary prevents
+  // matching inside identifiers like `df_temp` because `_` is a word char.
+  return /\bdf\b/.test(stripped);
+}
+
+/**
+ * Strip self-loading dataset prelude lines from LLM-authored feature code.
+ *
+ * When the LLM writes a "Shape B" feature (self-contained with its own
+ * `dataset_path = resolve_dataset_path(...)` and `df = pd.read_csv(...)`
+ * at the top), inlining it verbatim into the monolithic apply script
+ * would clobber the shared `df` variable, destroying mutations from
+ * preceding features. Strip these lines so the LLM code operates on the
+ * already-loaded df.
+ *
+ * The stripper uses a balanced-paren scan to correctly handle multi-line
+ * function calls (e.g., `dataset_path = resolve_dataset_path(\n  "file",\n  "id"\n)`)
+ * — a simple line-by-line regex would leave orphaned arguments and
+ * produce a SyntaxError.
+ */
+export function stripSelfLoadingPrelude(code: string): string {
+  const lines = code.split(/\r?\n/);
+  const result: string[] = [];
+  let skipUntilBalanced = false;
+  let parenDepth = 0;
+
+  const selfLoadPattern = /^\s*(dataset_path\s*=\s*resolve_dataset_path\s*\(|df\s*=\s*pd\.read_(csv|json|excel|parquet)\s*\()/;
+
+  for (const line of lines) {
+    if (skipUntilBalanced) {
+      for (const ch of line) {
+        if (ch === '(') parenDepth += 1;
+        else if (ch === ')') parenDepth -= 1;
+      }
+      if (parenDepth <= 0) {
+        skipUntilBalanced = false;
+        parenDepth = 0;
+      }
+      continue;
+    }
+
+    if (selfLoadPattern.test(line)) {
+      // Count parens on the starting line. If unbalanced, enter multi-line
+      // skip mode until closing paren is seen.
+      parenDepth = 0;
+      for (const ch of line) {
+        if (ch === '(') parenDepth += 1;
+        else if (ch === ')') parenDepth -= 1;
+      }
+      if (parenDepth > 0) {
+        skipUntilBalanced = true;
+      } else {
+        parenDepth = 0;
+      }
+      continue;
+    }
+
+    result.push(line);
+  }
+
+  return result.join('\n');
+}
+
+/**
+ * Sanitize a feature name into a Python identifier for function naming.
+ * Collapses non-alphanumeric characters to underscores and lowercases.
+ */
+function sanitizePythonIdentifier(name: string): string {
+  const cleaned = name.replace(/[^A-Za-z0-9_]/g, '_').toLowerCase();
+  const trimmed = cleaned.replace(/^_+|_+$/g, '') || 'feature';
+  // Ensure it doesn't start with a digit
+  return /^[0-9]/.test(trimmed) ? `f_${trimmed}` : trimmed;
+}
+
+/**
+ * Wrap LLM-authored feature code in a Python function scope so its local
+ * variables don't pollute the shared kernel globals and so reassignments
+ * like `df = df.copy()` only affect the function's scope.
+ *
+ * The caller-visible `df` is rebound to the function's return value,
+ * so mutations (`df["col"] = ...`) and reassignments (`df = df.copy()`)
+ * both work correctly.
+ */
+export function wrapLlmFeatureCode(code: string, featureName: string): string {
+  const stripped = stripSelfLoadingPrelude(code).trim();
+  const safeName = sanitizePythonIdentifier(featureName);
+  const indented = stripped
+    .split('\n')
+    .map((line) => (line.length > 0 ? `    ${line}` : ''))
+    .join('\n');
+
+  return [
+    `def _apply_llm_feature_${safeName}(df):`,
+    indented,
+    '    return df',
+    '',
+    `df = _apply_llm_feature_${safeName}(df)`
+  ].join('\n');
+}
+
+/**
+ * Generate the Python code snippet for a single feature transformation.
+ *
+ * When `feature.code` is present (LLM-authored), we wrap and use it verbatim
+ * so exported data matches what the notebook produced. This handles complex
+ * features like groupby transforms labelled with a simple method name
+ * (e.g., "ratio" tagging a group-share computation) where the codegen
+ * template can't reproduce the LLM's logic.
+ *
+ * When `feature.code` is absent, we fall back to the method-based codegen
+ * map. This preserves backward compatibility for simple features that
+ * never went through the full LLM lifecycle (e.g., user-toggled suggestion
+ * drafts that were never materialized).
+ */
+export function buildFeatureCode(feature: FeatureSpec, dataframeName: string): string {
+  // Prefer LLM-authored code ONLY when it's actionable. A comment-only or
+  // placeholder string (e.g., "# Placeholder: materialization deferred...")
+  // should fall through to the codegen template instead of wrapping a
+  // useless no-op in the apply script.
+  if (isActionableFeatureCode(feature.code)) {
+    return wrapLlmFeatureCode(feature.code!, feature.featureName ?? feature.method);
+  }
+
+  const src = pyString(feature.sourceColumn);
+  const dst = pyString(feature.featureName);
+  const secondary = feature.secondaryColumn ? pyString(feature.secondaryColumn) : undefined;
+
+  const codegen = FEATURE_CODEGEN_MAP.get(feature.method);
+  if (!codegen) {
+    // No actionable code AND no codegen template — surface a hard error in
+    // the generated script rather than producing silent no-op. This makes
+    // the Python execution fail loud instead of producing an empty output.
+    return `raise RuntimeError("Feature '${feature.featureName}' has no actionable code and no codegen template for method '${feature.method}'")`;
+  }
+  return codegen(feature, dataframeName, src, dst, secondary);
+}

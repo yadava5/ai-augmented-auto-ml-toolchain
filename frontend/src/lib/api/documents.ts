@@ -1,0 +1,95 @@
+import { apiFetch, apiRequest } from './client';
+
+export interface DocumentUploadResponse {
+  document: {
+    documentId: string;
+    projectId: string;
+    filename: string;
+    mimeType: string;
+    chunkCount: number;
+    embeddingDimension: number;
+    parseWarning?: string;
+  };
+}
+
+export interface SearchResult {
+  chunkId: string;
+  documentId: string;
+  filename: string;
+  score: number;
+  snippet: string;
+  span: { start: number; end: number };
+}
+
+export interface DocumentListItem {
+  documentId: string;
+  projectId?: string;
+  filename: string;
+  mimeType: string;
+  byteSize: number;
+  metadata?: Record<string, unknown>;
+  createdAt?: string;
+}
+
+export async function uploadDocument(projectId: string, file: File): Promise<DocumentUploadResponse> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('projectId', projectId);
+
+  const response = await apiFetch('/upload/doc', {
+    method: 'POST',
+    body: formData
+  });
+
+  if (!response.ok) {
+    const fallbackMessage = response.statusText || 'Document upload failed';
+    try {
+      const payload = await response.json();
+      const message =
+        typeof payload?.details === 'string'
+          ? `${payload.error ?? 'Document upload failed'}: ${payload.details}`
+          : payload?.error ?? fallbackMessage;
+      throw new Error(message);
+    } catch {
+      throw new Error(fallbackMessage);
+    }
+  }
+
+  return response.json() as Promise<DocumentUploadResponse>;
+}
+
+export async function listDocuments(projectId?: string): Promise<{ documents: DocumentListItem[] }> {
+  const url = projectId ? `/documents?projectId=${projectId}` : '/documents';
+  return apiRequest<{ documents: DocumentListItem[] }>(url, { method: 'GET' });
+}
+
+export async function downloadDocument(documentId: string): Promise<Blob> {
+  const response = await apiFetch(`/documents/${documentId}/download`, { method: 'GET' });
+
+  if (!response.ok) {
+    let message = response.statusText || 'Document download failed';
+    try {
+      const body = await response.json() as { error?: string };
+      if (body?.error) message = body.error;
+    } catch { /* non-JSON response, use statusText */ }
+    throw new Error(message);
+  }
+
+  return response.blob();
+}
+
+export async function deleteDocument(documentId: string): Promise<{ success: boolean }> {
+  return apiRequest<{ success: boolean }>(`/documents/${documentId}`, {
+    method: 'DELETE'
+  });
+}
+
+export async function searchDocuments(
+  projectId: string,
+  query: string,
+  topK: number = 5
+): Promise<{ results: SearchResult[] }> {
+  return apiRequest(`/docs/search?projectId=${projectId}&q=${encodeURIComponent(query)}&k=${topK}`, {
+    method: 'GET'
+  });
+}

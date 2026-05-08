@@ -1,0 +1,23 @@
+{
+  "name": "benchmark-testing",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "benchmark:prepare": "npm --prefix ../backend run build && VITE_API_BASE=${VITE_API_BASE:-http://127.0.0.1:${BENCHMARK_PORT:-4100}/api} npm --prefix ../frontend run build && npx playwright install --with-deps chromium",
+    "prebenchmark": "npm run benchmark:prepare",
+    "benchmark": "playwright test",
+    "prebenchmark:headed": "npm run benchmark:prepare",
+    "benchmark:headed": "playwright test --headed",
+    "eval": "tsx tests/evalRunner.ts",
+    "benchmark:validate": "node --import tsx/esm benchmarks/validate.ts",
+    "benchmark:test": "node --import tsx/esm --test benchmarks/**/*.test.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.0"
+  },
+  "dependencies": {
+    "node-fetch": "^3.3.2",
+    "tsx": "^4.20.6"
+  }
+}

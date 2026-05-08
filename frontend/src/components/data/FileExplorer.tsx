@@ -1,0 +1,246 @@
+import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
+import { toast } from 'sonner';
+import {
+  MoreVertical,
+  Download,
+  Trash2,
+  ClipboardList,
+  Plus,
+  Pencil
+} from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
+import { Button } from '@/components/ui/button';
+import { RenameTabDialog } from '@/components/preprocessing/PreprocessingDialogs';
+import { useFileActions } from '@/hooks/useFileActions';
+import { useProjectPlans } from '@/hooks/useProjectPlans';
+import { useDataStore } from '@/stores/dataStore';
+import { renameDataset } from '@/lib/api/datasets';
+import { cn } from '@/lib/utils';
+import { resolveFileIcon } from '@/lib/fileUtils';
+import type { UploadedFile } from '@/types/file';
+
+interface FileExplorerProps {
+  projectId: string;
+}
+
+
+interface FileItemProps {
+  file: UploadedFile;
+  isActive: boolean;
+  onOpen: () => void;
+  onDelete: () => void;
+  onDownload: () => void;
+  onRename: () => void;
+}
+
+function FileItem({ file, isActive, onOpen, onDelete, onDownload, onRename }: FileItemProps) {
+  const { Icon, colorClass } = resolveFileIcon(file.type);
+  const iconColor = isActive ? colorClass : 'text-muted-foreground';
+
+  return (
+    <div
+      className={cn(
+        'group flex h-9 items-center gap-2 px-3 rounded-lg transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
+        isActive
+          ? 'bg-muted text-foreground font-medium'
+          : 'text-foreground hover:bg-muted'
+      )}
+      onClick={onOpen}
+    >
+      <Icon className={cn('h-3.5 w-3.5 shrink-0 transition-colors duration-200', iconColor)} />
+      <span className="text-workflow truncate flex-1" title={file.name}>{file.name}</span>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <MoreVertical className="h-3.5 w-3.5" />
+            <span className="sr-only">File options</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem
+            onClick={(e) => {
+              e.stopPropagation();
+              onRename();
+            }}
+          >
+            <Pencil className="h-4 w-4 mr-2" />
+            Rename
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={(e) => {
+              e.stopPropagation();
+              onDownload();
+            }}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Download
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            className="text-destructive focus:text-destructive"
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
+
+interface PlanItemProps {
+  name: string;
+  isActive: boolean;
+  onOpen: () => void;
+}
+
+function PlanItem({ name, isActive, onOpen }: PlanItemProps) {
+  const iconColor = isActive ? 'text-accent-text' : 'text-muted-foreground';
+
+  return (
+    <div
+      className={cn(
+        'group flex h-9 items-center gap-2 px-3 rounded-lg transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
+        isActive
+          ? 'bg-muted text-foreground font-medium'
+          : 'text-foreground hover:bg-muted'
+      )}
+      onClick={onOpen}
+    >
+      <ClipboardList className={cn('h-3.5 w-3.5 shrink-0 transition-colors duration-200', iconColor)} />
+      <span className="text-workflow truncate flex-1">{name}</span>
+    </div>
+  );
+}
+
+export function FileExplorer({ projectId }: FileExplorerProps) {
+  const location = useLocation();
+  const { dataFiles, contextFiles, activeFileTabId, isOnDataViewer, handleOpenFile, handleDeleteFile, handleDownloadFile } = useFileActions(projectId);
+  const { plans, selectedPlanId, handleOpenPlan, handleCreateNewPlan } = useProjectPlans(projectId);
+  const [renamingFile, setRenamingFile] = useState<UploadedFile | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+
+  useEffect(() => {
+    if (projectId) void useDataStore.getState().hydrateFromBackend(projectId);
+  }, [projectId]);
+
+  const openRenameDialog = (file: UploadedFile) => {
+    setRenamingFile(file);
+    setRenameValue(file.name);
+  };
+
+  const handleRenameConfirm = async () => {
+    if (!renamingFile || !renameValue.trim()) return;
+    const datasetId = renamingFile.metadata?.datasetId;
+    if (!datasetId) return;
+    try {
+      await renameDataset(datasetId, renameValue.trim());
+      await useDataStore.getState().hydrateFromBackend(projectId, { force: true });
+      toast.success('File renamed');
+    } catch {
+      toast.error('Failed to rename file');
+    }
+    setRenamingFile(null);
+  };
+
+  const isOnUpload = location.pathname.endsWith('/upload');
+
+  const renderFileList = (fileList: UploadedFile[], emptyMessage: string) => {
+    if (fileList.length === 0) {
+      return (
+        <div className="px-3 py-2 text-workflow text-muted-foreground">
+          {emptyMessage}
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-0.5">
+        {fileList.map((file) => (
+          <FileItem
+            key={file.id}
+            file={file}
+            isActive={isOnDataViewer && file.id === activeFileTabId}
+            onOpen={() => handleOpenFile(file.id)}
+            onDelete={() => handleDeleteFile(file)}
+            onDownload={() => handleDownloadFile(file)}
+            onRename={() => openRenameDialog(file)}
+          />
+        ))}
+      </div>
+    );
+  };
+
+  return (
+    <>
+      <div className="space-y-4">
+        <section>
+          <h2 className="px-2 py-1 text-workflow-label font-semibold text-muted-foreground uppercase tracking-wider">Data Files</h2>
+          {renderFileList(dataFiles, 'No datasets yet.')}
+        </section>
+
+        <section>
+          <h2 className="px-2 py-1 text-workflow-label font-semibold text-muted-foreground uppercase tracking-wider">Context Files</h2>
+          {renderFileList(contextFiles, 'No context docs yet.')}
+        </section>
+
+        <section>
+          <div className="flex items-center gap-1 px-2 py-1">
+            <h2 className="flex-1 text-workflow-label font-semibold text-muted-foreground uppercase tracking-wider">Plans</h2>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+              onClick={handleCreateNewPlan}
+              title="Create new plan"
+            >
+              <Plus className="h-3.5 w-3.5 text-muted-foreground" />
+            </Button>
+          </div>
+          {plans.length > 0 ? (
+            <div className="space-y-0.5">
+              {plans.map((plan) => (
+                <PlanItem
+                  key={plan.id}
+                  name={plan.name}
+                  isActive={isOnUpload && plan.id === selectedPlanId}
+                  onOpen={() => handleOpenPlan(plan.id)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="px-3 py-2 text-workflow text-muted-foreground cursor-pointer hover:text-foreground hover:underline" onClick={handleCreateNewPlan}>
+              Create a plan
+            </div>
+          )}
+        </section>
+      </div>
+
+      <RenameTabDialog
+        open={!!renamingFile}
+        onOpenChange={(open) => { if (!open) setRenamingFile(null); }}
+        value={renameValue}
+        onValueChange={setRenameValue}
+        onSave={() => void handleRenameConfirm()}
+        title="Rename file"
+        description="Enter a new name for this file."
+        placeholder="File name"
+      />
+    </>
+  );
+}

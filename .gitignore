@@ -1,0 +1,84 @@
+.DS_Store
+.shree/
+
+# Serena MCP config
+.serena/
+
+# Claude Code config (keep skills shared, ignore local config)
+.claude/*
+!.claude/skills/
+
+# Node modules (all workspaces)
+node_modules/
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Temp/debug files
+*.check.txt
+index_check.txt
+routes_check.txt
+backend/frontend_dump.json
+tmp/
+.tmp/
+storage/
+test-results/
+
+# Booklet build output and design-iteration artifact directories
+booklet/dist/
+booklet/.agent*/
+booklet/.tmp-*/
+
+# Video diagnostic scripts (debug-only, do not ship)
+video/scroll-drift-*.cjs
+video/phase-trace.cjs
+video/phase-p-diag.cjs
+
+# Local Python venv used by testing/scripts/*.py (pandas/openpyxl)
+testing/.venv/
+
+# Empty shadcn alias structure
+frontend/@/
+
+# Local environment
+frontend/.env
+
+# Capstone competition research (private)
+docs/capstone-competition-notes.md
+
+# Handoff docs (not for repo)
+LLM_TRAINING_TAB_CONTEXT.md
+NOTEBOOK_IMPLEMENTATION_HANDOFF.md
+TRAINING_TAB_HANDOFF.md
+
+# GWS CLI skills (installed via `npx skills add`)
+# .agents/skills is a committed symlink to .claude/skills for Codex/Cursor/Windsurf compatibility.
+.agents/*
+!.agents/skills
+.claude/skills/gws-*
+.claude/skills/persona-*
+.claude/skills/recipe-*
+skills-lock.json
+
+# Agent/coding guidelines (shared with team)
+DECISIONS.md
+PROGRESS.md
+
+# Proposal documents (keep locally, not in repo)
+Proposal Detailed Brainstorm.txt
+Senior Design Project Proposal.pdf
+
+# OpenCode AI planning files
+.opencode/
+
+# Local agent/debug logs
+.cursor/
+.playwright-cli/
+.superpowers/
+.vercel/
+
+# Git worktrees
+.worktrees/
+
+# Personal todo
+todos.md

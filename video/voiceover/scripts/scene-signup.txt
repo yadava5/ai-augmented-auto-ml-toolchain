@@ -1,0 +1,7 @@
+{{CTA}} This is Ayush. He is a data science student at Miami, and he has a dataset he wants a model for.
+
+{{SIGNUP}} He does not have an account yet, so we will start there.
+
+{{TYPE_NAME}} Name and school email, {{TYPE_PASSWORD}} followed by a password he will remember on day two.
+
+{{SUBMIT}} And he is in.
