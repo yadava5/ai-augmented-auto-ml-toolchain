@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-build-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+            testing/package-lock.json
+            landing/package-lock.json
+            video/package-lock.json
+            poster/package-lock.json
+            booklet/package-lock.json
+
+      - name: Install backend dependencies
+        run: npm --prefix backend ci --no-audit --no-fund
+
+      - name: Install frontend dependencies
+        run: npm --prefix frontend ci --no-audit --no-fund
+
+      - name: Lint core app
+        run: npm run lint
+
+      - name: Test core app
+        run: npm run test
+
+      - name: Build core app
+        run: npm run build
