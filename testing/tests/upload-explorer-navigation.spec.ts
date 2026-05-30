@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
-import { getApiBase, getApiOrigin, getFrontendBase } from '../helpers';
+import { getApiBase, getApiOrigin, getFrontendBase, registerBenchmarkUser } from '../helpers';
 
 const FRONTEND_BASE = getFrontendBase();
 const API_BASE = getApiBase();
@@ -26,23 +26,15 @@ function isAuthNoise(path: string) {
   return path.startsWith('/api/auth/me') || path.startsWith('/api/auth/refresh');
 }
 
+function isExplorerLoadNoise(path: string) {
+  return path.startsWith('/api/query/nl/suggestions');
+}
+
 async function registerTestUser(request: APIRequestContext): Promise<AuthResponse> {
-  const email = `playwright-${randomUUID()}@automl.test`;
-  const password = 'Playwright2026!';
-
-  const response = await request.post(`${API_BASE}/auth/register`, {
-    data: {
-      email,
-      password,
-      name: 'Playwright Bot',
-    },
+  return registerBenchmarkUser(request, {
+    emailPrefix: 'playwright',
+    name: 'Playwright Bot'
   });
-
-  if (!response.ok()) {
-    throw new Error(`Registration failed: ${response.status()} ${await response.text()}`);
-  }
-
-  return response.json();
 }
 
 async function createProject(request: APIRequestContext, accessToken: string) {
@@ -157,7 +149,7 @@ test('upload and explorer navigation stays stable in the live dev app', async ({
     const url = new URL(req.url());
     if (url.origin === API_ORIGIN) {
       const path = `${url.pathname}${url.search}`;
-      if (isAuthNoise(path)) {
+      if (isAuthNoise(path) || isExplorerLoadNoise(path)) {
         return;
       }
       backendRequests.push({

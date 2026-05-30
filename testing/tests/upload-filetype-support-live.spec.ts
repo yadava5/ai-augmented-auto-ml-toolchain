@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext, type Page, type Request } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 
-import { getApiBase } from '../helpers';
+import { getApiBase, registerBenchmarkUser } from '../helpers';
 
 const API_BASE = getApiBase();
 
@@ -34,20 +34,11 @@ interface UploadFixture {
 }
 
 async function registerUser(request: APIRequestContext): Promise<AuthResponse> {
-  const email = `upload-filetypes-${randomUUID()}@automl.test`;
-  const response = await request.post(`${API_BASE}/auth/register`, {
-    data: {
-      email,
-      password: 'UploadFiletypes2026!',
-      name: 'Upload Filetypes Bot',
-    },
+  return registerBenchmarkUser(request, {
+    emailPrefix: 'upload-filetypes',
+    password: 'UploadFiletypes2026!',
+    name: 'Upload Filetypes Bot'
   });
-
-  if (!response.ok()) {
-    throw new Error(`Registration failed: ${response.status()} ${await response.text()}`);
-  }
-
-  return response.json();
 }
 
 async function createProject(request: APIRequestContext, accessToken: string): Promise<ApiProject> {

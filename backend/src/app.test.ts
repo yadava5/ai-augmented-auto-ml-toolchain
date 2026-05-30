@@ -1,5 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import request from 'supertest';
+import { afterEach, describe, expect, it } from 'vitest';
 
+import { createApp } from './app.js';
+import { env } from './config.js';
 import { resolveDeploymentPredictTarget, rewriteDeploymentPredictPath } from './services/deploymentPredictProxy.js';
 import type { DeploymentRecord } from './types/deployment.js';
 
@@ -17,6 +20,18 @@ function makeDeployment(overrides: Partial<DeploymentRecord> = {}): DeploymentRe
     updatedAt: new Date().toISOString(),
     ...overrides,
   };
+}
+
+function buildUnsignedBenchmarkJwt(userId: string) {
+  const encode = (value: unknown) => Buffer
+    .from(JSON.stringify(value), 'utf8')
+    .toString('base64url');
+  const now = Math.floor(Date.now() / 1000);
+  return `${encode({ alg: 'none', typ: 'JWT' })}.${encode({
+    sub: userId,
+    exp: now + 60 * 60,
+    iat: now
+  })}.benchmark`;
 }
 
 describe('rewriteDeploymentPredictPath', () => {
@@ -55,5 +70,31 @@ describe('resolveDeploymentPredictTarget', () => {
     expect(() => resolveDeploymentPredictTarget(makeDeployment({ port: undefined }))).toThrow(
       'Deployment not available',
     );
+  });
+});
+
+describe('createApp auth routing', () => {
+  const originalDatabaseUrl = env.databaseUrl;
+  const originalBenchmarkAuthBypass = env.benchmarkAuthBypass;
+
+  afterEach(() => {
+    env.databaseUrl = originalDatabaseUrl;
+    env.benchmarkAuthBypass = originalBenchmarkAuthBypass;
+  });
+
+  it('allows benchmark auth bootstrap without database configuration', async () => {
+    env.databaseUrl = undefined;
+    env.benchmarkAuthBypass = true;
+
+    const response = await request(createApp())
+      .get('/api/auth/me')
+      .set('Authorization', `Bearer ${buildUnsignedBenchmarkJwt('playwright-user')}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.user).toMatchObject({
+      email: 'playwright-user@benchmark.local',
+      email_verified: true,
+      role: 'user'
+    });
   });
 });

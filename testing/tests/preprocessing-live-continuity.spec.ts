@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 
-import { getApiBase } from '../helpers';
+import { getApiBase, registerBenchmarkUser } from '../helpers';
 
 const API_BASE = getApiBase();
 const testDir = path.dirname(fileURLToPath(import.meta.url));
@@ -35,14 +35,10 @@ interface ApiDataset {
 }
 
 async function registerUser(request: APIRequestContext): Promise<AuthResponse> {
-  const email = `prep-live-${randomUUID()}@automl.test`;
-  const response = await request.post(`${API_BASE}/auth/register`, {
-    data: { email, password: 'Playwright2026!', name: 'Preprocessing Live Stress' }
+  return registerBenchmarkUser(request, {
+    emailPrefix: 'prep-live',
+    name: 'Preprocessing Live Stress'
   });
-  if (!response.ok()) {
-    throw new Error(`register failed: ${response.status()} ${await response.text()}`);
-  }
-  return response.json() as Promise<AuthResponse>;
 }
 
 async function createProject(request: APIRequestContext, token: string): Promise<ApiProject> {

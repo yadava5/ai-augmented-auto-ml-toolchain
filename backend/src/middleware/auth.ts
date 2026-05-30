@@ -68,6 +68,43 @@ function toDeterministicBenchmarkUserId(rawUserId: string): string {
   ].join('-');
 }
 
+function decodeBenchmarkJwtSegment(segment: string): Record<string, unknown> | undefined {
+  try {
+    const decoded = Buffer.from(segment, 'base64url').toString('utf8');
+    const parsed = JSON.parse(decoded) as unknown;
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function resolveBenchmarkBearerUserId(req: AuthRequest): string | undefined {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return undefined;
+  }
+
+  const [headerSegment, payloadSegment, signatureSegment] = authHeader.substring(7).split('.');
+  if (!headerSegment || !payloadSegment || signatureSegment !== 'benchmark') {
+    return undefined;
+  }
+
+  const header = decodeBenchmarkJwtSegment(headerSegment);
+  const payload = decodeBenchmarkJwtSegment(payloadSegment);
+  if (header?.alg !== 'none' || header?.typ !== 'JWT') {
+    return undefined;
+  }
+
+  const expiresAt = typeof payload?.exp === 'number' ? payload.exp : undefined;
+  if (expiresAt !== undefined && expiresAt <= Math.floor(Date.now() / 1000)) {
+    return undefined;
+  }
+
+  return typeof payload?.sub === 'string' && payload.sub.trim() ? payload.sub : undefined;
+}
+
 function resolveBenchmarkBypassUser(req: AuthRequest): SafeUser | undefined {
   if (!env.benchmarkAuthBypass) {
     return undefined;
@@ -79,7 +116,9 @@ function resolveBenchmarkBypassUser(req: AuthRequest): SafeUser | undefined {
   const roleHeader = req.headers['x-benchmark-user-role'];
 
   const userId = Array.isArray(userIdHeader) ? userIdHeader[0] : userIdHeader;
-  if (!userId || typeof userId !== 'string' || !userId.trim()) {
+  const bearerUserId = resolveBenchmarkBearerUserId(req);
+  const resolvedUserId = typeof userId === 'string' && userId.trim() ? userId : bearerUserId;
+  if (!resolvedUserId || typeof resolvedUserId !== 'string' || !resolvedUserId.trim()) {
     return undefined;
   }
 
@@ -87,7 +126,7 @@ function resolveBenchmarkBypassUser(req: AuthRequest): SafeUser | undefined {
   const name = Array.isArray(nameHeader) ? nameHeader[0] : nameHeader;
   const role = Array.isArray(roleHeader) ? roleHeader[0] : roleHeader;
   const timestamp = new Date(0);
-  const rawUserId = userId.trim();
+  const rawUserId = resolvedUserId.trim();
 
   return {
     user_id: toDeterministicBenchmarkUserId(rawUserId),

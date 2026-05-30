@@ -9,6 +9,8 @@ import { executeCell } from '../../notebook/cellExecutionService.js';
 import type { DatasetSyncMode } from '../../notebook/datasetSyncMode.js';
 import * as notebookService from '../../notebook/notebookService.js';
 
+import * as benchmarkNotebookFallback from './benchmarkNotebookFallback.js';
+
 /**
  * Load the cell and verify it belongs to a phase notebook owned by the given
  * project. Protects against LLM-supplied cellIds that reference cells in
@@ -58,6 +60,9 @@ async function resolveNotebookId(projectId: string, args: ToolCall['args']): Pro
 
 export async function listCells(projectId: string, args: ToolCall['args']) {
   if (!hasDatabaseConfiguration()) {
+    if (benchmarkNotebookFallback.isBenchmarkNotebookFallbackEnabled()) {
+      return benchmarkNotebookFallback.listCells(projectId, args);
+    }
     throw new Error('Notebook operations require database configuration.');
   }
   const notebookId = await resolveNotebookId(projectId, args);
@@ -67,6 +72,9 @@ export async function listCells(projectId: string, args: ToolCall['args']) {
 
 export async function readCell(projectId: string, args: ToolCall['args']) {
   if (!hasDatabaseConfiguration()) {
+    if (benchmarkNotebookFallback.isBenchmarkNotebookFallbackEnabled()) {
+      return benchmarkNotebookFallback.readCell(projectId, args);
+    }
     throw new Error('Notebook operations require database configuration.');
   }
   const cellId = typeof args?.cellId === 'string' ? args.cellId : '';
@@ -79,6 +87,9 @@ export async function readCell(projectId: string, args: ToolCall['args']) {
 
 export async function writeCell(projectId: string, args: ToolCall['args']) {
   if (!hasDatabaseConfiguration()) {
+    if (benchmarkNotebookFallback.isBenchmarkNotebookFallbackEnabled()) {
+      return benchmarkNotebookFallback.writeCell(projectId, args);
+    }
     throw new Error('Notebook operations require database configuration.');
   }
   const content = typeof args?.content === 'string' ? args.content : '';
@@ -101,6 +112,9 @@ export async function writeCell(projectId: string, args: ToolCall['args']) {
 
 export async function editCell(projectId: string, args: ToolCall['args']) {
   if (!hasDatabaseConfiguration()) {
+    if (benchmarkNotebookFallback.isBenchmarkNotebookFallbackEnabled()) {
+      return benchmarkNotebookFallback.editCell(projectId, args);
+    }
     throw new Error('Notebook operations require database configuration.');
   }
   const cellId = typeof args?.cellId === 'string' ? args.cellId : '';
@@ -131,6 +145,9 @@ export async function editCell(projectId: string, args: ToolCall['args']) {
 
 export async function runCell(projectId: string, args: ToolCall['args']) {
   if (!hasDatabaseConfiguration()) {
+    if (benchmarkNotebookFallback.isBenchmarkNotebookFallbackEnabled()) {
+      return benchmarkNotebookFallback.runCell(projectId, args);
+    }
     throw new Error('Notebook operations require database configuration.');
   }
   const cellId = typeof args?.cellId === 'string' ? args.cellId : '';
@@ -200,6 +217,9 @@ const NIL_UUID = '00000000-0000-0000-0000-000000000000';
 
 export async function deleteCell(projectId: string, args: ToolCall['args']) {
   if (!hasDatabaseConfiguration()) {
+    if (benchmarkNotebookFallback.isBenchmarkNotebookFallbackEnabled()) {
+      return benchmarkNotebookFallback.deleteCell(projectId, args);
+    }
     throw new Error('Notebook operations require database configuration.');
   }
   const cellId = typeof args?.cellId === 'string' ? args.cellId : '';
@@ -226,6 +246,9 @@ export async function deleteCell(projectId: string, args: ToolCall['args']) {
 
 export async function reorderCells(projectId: string, args: ToolCall['args']) {
   if (!hasDatabaseConfiguration()) {
+    if (benchmarkNotebookFallback.isBenchmarkNotebookFallbackEnabled()) {
+      return benchmarkNotebookFallback.reorderCells(projectId, args);
+    }
     throw new Error('Notebook operations require database configuration.');
   }
 
@@ -249,6 +272,9 @@ export async function reorderCells(projectId: string, args: ToolCall['args']) {
 
 export async function insertCell(projectId: string, args: ToolCall['args']) {
   if (!hasDatabaseConfiguration()) {
+    if (benchmarkNotebookFallback.isBenchmarkNotebookFallbackEnabled()) {
+      return benchmarkNotebookFallback.insertCell(projectId, args);
+    }
     throw new Error('Notebook operations require database configuration.');
   }
 

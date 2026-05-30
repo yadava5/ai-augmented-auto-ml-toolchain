@@ -31,6 +31,7 @@
  *   AUTOML_FRONTEND_BASE_URL    frontend origin (default 127.0.0.1:5173)
  *   FUNCTIONAL_SKIP_WORKFLOWS=1 skip legs 3-6 (preprocessing/FE/train/exp)
  *                               for a fast upload+navigate smoke (~30s)
+ *   FUNCTIONAL_FORCE_WORKFLOWS=1 run workflow legs even when LLM_PROVIDER=mock
  *   FUNCTIONAL_DEPLOY=1         enable leg 7 (deployment create + predict)
  *   FUNCTIONAL_TARGET_COLUMN    override target column (default 'churned')
  *   FUNCTIONAL_DATASET          fixture basename (default
@@ -51,14 +52,16 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
-import { getApiBase } from '../helpers';
+import { getApiBase, registerBenchmarkUser } from '../helpers';
 
 const API_BASE = getApiBase();
 const testDir = path.dirname(fileURLToPath(import.meta.url));
 const DATASET_FILENAME = process.env.FUNCTIONAL_DATASET ?? 'mock_customer_churn_clean.csv';
 const DATASET_PATH = path.resolve(testDir, '../fixtures', DATASET_FILENAME);
 const TARGET_COLUMN = process.env.FUNCTIONAL_TARGET_COLUMN ?? 'churned';
-const SKIP_WORKFLOWS = process.env.FUNCTIONAL_SKIP_WORKFLOWS === '1';
+const SKIP_WORKFLOWS =
+  process.env.FUNCTIONAL_SKIP_WORKFLOWS === '1'
+  || (process.env.LLM_PROVIDER === 'mock' && process.env.FUNCTIONAL_FORCE_WORKFLOWS !== '1');
 const RUN_DEPLOY = process.env.FUNCTIONAL_DEPLOY === '1';
 const WORKFLOW_MODEL = process.env.FUNCTIONAL_MODEL ?? 'gpt-5.4-mini';
 const WORKFLOW_REASONING = process.env.FUNCTIONAL_REASONING ?? 'medium';
@@ -103,12 +106,11 @@ const PHASES: readonly string[] = [
 /* ---------------------------------------------------------------------- */
 
 async function registerUser(request: APIRequestContext): Promise<AuthResponse> {
-  const email = `functional-${randomUUID()}@automl.test`;
-  const res = await request.post(`${API_BASE}/auth/register`, {
-    data: { email, password: 'Functional2026!', name: 'Functional Walker' },
+  return registerBenchmarkUser(request, {
+    emailPrefix: 'functional',
+    password: 'Functional2026!',
+    name: 'Functional Walker'
   });
-  if (!res.ok()) throw new Error(`register failed: ${res.status()} ${await res.text()}`);
-  return res.json();
 }
 
 async function createProject(request: APIRequestContext, token: string): Promise<ApiProject> {
@@ -325,7 +327,9 @@ test('seven-phase functional walk — data artifacts visible at each leg', async
   if (SKIP_WORKFLOWS) {
     test.info().annotations.push({
       type: 'note',
-      description: 'FUNCTIONAL_SKIP_WORKFLOWS=1 — skipped preprocessing/FE/training/experiments/deploy legs.',
+      description: process.env.LLM_PROVIDER === 'mock'
+        ? 'LLM_PROVIDER=mock — skipped full workflow legs; preprocessing mock coverage lives in preprocessing-mock-regression.spec.ts.'
+        : 'FUNCTIONAL_SKIP_WORKFLOWS=1 — skipped preprocessing/FE/training/experiments/deploy legs.',
     });
     return;
   }

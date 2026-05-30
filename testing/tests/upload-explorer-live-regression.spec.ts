@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
-import { getApiBase, getApiOrigin } from '../helpers';
+import { getApiBase, getApiOrigin, registerBenchmarkUser } from '../helpers';
 
 const API_BASE = getApiBase();
 const API_ORIGIN = getApiOrigin();
@@ -31,19 +31,10 @@ async function ensureOk(response: Awaited<ReturnType<APIRequestContext['post']>>
 }
 
 async function registerTestUser(request: APIRequestContext): Promise<AuthResponse> {
-  const email = `playwright-${randomUUID()}@automl.test`;
-  const password = 'Playwright2026!';
-
-  const response = await request.post(`${API_BASE}/auth/register`, {
-    data: {
-      email,
-      password,
-      name: 'Playwright Bot',
-    },
+  return registerBenchmarkUser(request, {
+    emailPrefix: 'playwright',
+    name: 'Playwright Bot'
   });
-
-  await ensureOk(response, 'Registration');
-  return response.json();
 }
 
 async function createProject(request: APIRequestContext, accessToken: string) {

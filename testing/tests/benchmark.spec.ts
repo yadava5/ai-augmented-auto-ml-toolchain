@@ -1,15 +1,12 @@
 import { test, expect } from '@playwright/test';
 import type { APIRequestContext, Page } from '@playwright/test';
-import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { getApiBase, resetBackendData } from '../helpers';
+import { registerBenchmarkUser, resetBackendData } from '../helpers';
 
 const datasetMetadataPath = process.env.AUTOML_DATASET_METADATA_PATH;
 const storagePath = process.env.AUTOML_STORAGE_PATH;
 const datasetFilesPath = process.env.AUTOML_DATASET_FILES_PATH;
-const API_BASE = getApiBase();
-
 if (!datasetMetadataPath || !storagePath || !datasetFilesPath) {
   throw new Error('Benchmark environment paths were not provided by Playwright configuration.');
 }
@@ -26,20 +23,10 @@ interface AuthResponse {
 }
 
 async function registerTestUser(request: APIRequestContext): Promise<AuthResponse> {
-  const email = `benchmark-${randomUUID()}@automl.test`;
-  const response = await request.post(`${API_BASE}/auth/register`, {
-    data: {
-      email,
-      password: 'Playwright2026!',
-      name: 'Benchmark Bot',
-    },
+  return registerBenchmarkUser(request, {
+    emailPrefix: 'benchmark',
+    name: 'Benchmark Bot'
   });
-
-  if (!response.ok()) {
-    throw new Error(`Registration failed: ${response.status()} ${await response.text()}`);
-  }
-
-  return response.json();
 }
 
 async function seedAuth(page: Page, auth: AuthResponse) {

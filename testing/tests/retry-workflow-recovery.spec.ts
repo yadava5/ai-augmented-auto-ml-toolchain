@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { getApiBase, getFrontendBase } from '../helpers';
+import { getApiBase, getFrontendBase, registerBenchmarkUser } from '../helpers';
 
 const API_BASE = getApiBase();
 const FRONTEND_BASE = getFrontendBase();
@@ -33,14 +33,11 @@ interface ApiProject {
 }
 
 async function registerUser(request: APIRequestContext): Promise<AuthResponse> {
-  const email = `functional-retry-${randomUUID()}@automl.test`;
-  const res = await request.post(`${API_BASE}/auth/register`, {
-    data: { email, password: 'Functional2026!', name: 'Functional Retry' }
+  return registerBenchmarkUser(request, {
+    emailPrefix: 'functional-retry',
+    password: 'Functional2026!',
+    name: 'Functional Retry'
   });
-  if (!res.ok()) {
-    throw new Error(`register failed: ${res.status()} ${await res.text()}`);
-  }
-  return res.json();
 }
 
 async function createProject(request: APIRequestContext, token: string): Promise<ApiProject> {

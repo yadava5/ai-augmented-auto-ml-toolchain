@@ -38,6 +38,7 @@ import { createSettingsRouter } from './routes/settings.js';
 import { createWorkflowRouter } from './routes/workflows.js';
 import * as deploymentManager from './services/deploymentManager.js';
 import { resolveDeploymentPredictTarget, rewriteDeploymentPredictPath } from './services/deploymentPredictProxy.js';
+import type { AuthenticatedRequest } from './types/auth.js';
 
 export function createApp() {
   const app = express();
@@ -217,6 +218,11 @@ export function createApp() {
   if (hasDatabaseConfiguration()) {
     registerAuthRoutes(router, getDbPool());
   } else {
+    if (env.benchmarkAuthBypass) {
+      router.get('/auth/me', requireAuth, (req, res) => {
+        res.json({ user: (req as AuthenticatedRequest).user });
+      });
+    }
     router.use('/auth', (_req, res) => {
       res.status(503).json({ error: 'Authentication is unavailable. Configure DATABASE_URL to enable auth.' });
     });

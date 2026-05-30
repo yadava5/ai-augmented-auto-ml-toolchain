@@ -53,6 +53,18 @@ function makeReq(authHeader?: string): AuthRequest {
   return { headers: { authorization: authHeader } } as unknown as AuthRequest;
 }
 
+function makeUnsignedBenchmarkJwt(userId: string) {
+  const encode = (value: unknown) => Buffer
+    .from(JSON.stringify(value), 'utf8')
+    .toString('base64url');
+  const now = Math.floor(Date.now() / 1000);
+  return `${encode({ alg: 'none', typ: 'JWT' })}.${encode({
+    sub: userId,
+    exp: now + 60 * 60,
+    iat: now
+  })}.benchmark`;
+}
+
 function makeRes() {
   const res = {
     status: vi.fn().mockReturnThis(),
@@ -154,6 +166,29 @@ describe('requireAuth', () => {
     });
     expect(req.user?.user_id).not.toBe('benchmark-user-1');
     expect(mocks.query).toHaveBeenCalledTimes(1);
+    expect(mocks.findById).not.toHaveBeenCalled();
+    expect(mocks.verifyAccessToken).not.toHaveBeenCalled();
+  });
+
+  it('attaches a synthetic benchmark user from a benchmark bearer token without database configuration', async () => {
+    const userId = '550e8400-e29b-41d4-a716-446655440000';
+    const req = makeReq(`Bearer ${makeUnsignedBenchmarkJwt(userId)}`);
+    const res = makeRes();
+    const next: NextFunction = vi.fn();
+
+    mocks.envMock.benchmarkAuthBypass = true;
+    mocks.hasDatabaseConfiguration.mockReturnValue(false);
+
+    await requireAuth(req, res, next);
+
+    expect(next).toHaveBeenCalled();
+    expect(req.user).toMatchObject({
+      user_id: userId,
+      email: `${userId}@benchmark.local`,
+      name: 'Benchmark User',
+      email_verified: true
+    });
+    expect(mocks.query).not.toHaveBeenCalled();
     expect(mocks.findById).not.toHaveBeenCalled();
     expect(mocks.verifyAccessToken).not.toHaveBeenCalled();
   });
