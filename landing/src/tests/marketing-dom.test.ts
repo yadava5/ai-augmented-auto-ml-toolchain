@@ -33,7 +33,9 @@ describe('marketing DOM (post-build)', () => {
   });
 
   it('contains the primary CTA', () => {
-    expect(readDist()).toContain('Get Started');
+    // Auth is not hosted on this standalone marketing site, so the primary
+    // CTA renders as a non-interactive "Coming soon" state.
+    expect(readDist()).toContain('Coming soon');
   });
 
   it('contains all 3 nav link labels', () => {

@@ -175,20 +175,16 @@ describe('preview source guardrails', () => {
     expect(landingZodUtil).not.toContain('new F("");');
   });
 
-  it('redirects the landing sign-in to the real app login URL', () => {
-    // Original intent was a static "Coming Soon" placeholder. The sprint-11
-    // demo-ready branch flipped this to a real redirect into the app so demo
-    // visitors can sign in on the deployed backend. Assertions updated to
-    // match the current behavior (redirect + appLoginUrl) instead of the
-    // placeholder. The canonical branch migrated from `final-demo` to
-    // `sprint11` via !150 on 2026-04-20; sprint11 is now the frozen
-    // core-app source of truth.
+  it('renders the landing sign-in route as a standalone "Coming soon" placeholder', () => {
+    // This landing now ships as an independent marketing site with no hosted
+    // backend, so the /login route no longer redirects into the app. It renders
+    // a self-contained "Coming soon" placeholder (reverting to the original
+    // pre-demo intent) so the page stands alone without auth infrastructure.
     expect(existsSync(path.resolve(landingRoot, 'pages/login.astro'))).toBe(true);
     const loginPage = readFileSync(path.resolve(landingRoot, 'pages/login.astro'), 'utf8');
-    expect(loginPage).toContain('getAppLoginUrl');
-    expect(loginPage).toContain('window.location.replace(appLoginUrl)');
-    expect(loginPage).toContain('http-equiv="refresh"');
-    expect(loginPage).not.toContain('Coming Soon');
+    expect(loginPage).toContain('Coming soon');
+    expect(loginPage).not.toContain('getAppLoginUrl');
+    expect(loginPage).not.toContain('http-equiv="refresh"');
   });
 
   it('ships a landing /repo page that redirects to the shared GitLab repository URL', () => {

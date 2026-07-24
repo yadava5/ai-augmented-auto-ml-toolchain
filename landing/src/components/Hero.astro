@@ -1,9 +1,6 @@
 ---
 // Hero — intentionally short so the app preview dominates the fold.
 // Entrance sequence: pill fade → heading deblur → subhead word-fade → CTA rise.
-import { getAppLoginUrl } from '@/lib/appLinks';
-
-const appLoginUrl = getAppLoginUrl();
 ---
 
 <section class="hero" id="top">
@@ -29,12 +26,7 @@ const appLoginUrl = getAppLoginUrl();
   </p>
 
   <div class="hero-cta-row">
-    <a href={appLoginUrl} class="hero-cta">
-      Get Started
-      <svg class="hero-cta-icon" width="18" height="18" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-        <path d="M3.5 8H12.5M12.5 8L8.5 4M12.5 8L8.5 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-    </a>
+    <span class="hero-cta hero-cta-soon" aria-disabled="true">Coming soon</span>
   </div>
 </section>
 
@@ -328,6 +320,14 @@ const appLoginUrl = getAppLoginUrl();
   }
   .hero-cta:hover .hero-cta-icon {
     transform: translateX(2px);
+  }
+
+  /* Auth is not yet available on this standalone marketing site, so the
+     primary CTA renders as a non-interactive "Coming soon" state. */
+  .hero-cta-soon {
+    cursor: default;
+    opacity: 0.62;
+    pointer-events: none;
   }
 
   /* ── Reduced motion ── */
