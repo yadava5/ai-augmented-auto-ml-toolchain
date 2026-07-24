@@ -29,7 +29,7 @@ describe('marketing DOM (post-build)', () => {
   });
 
   it('contains the pulse announcement', () => {
-    expect(readDist()).toContain('Now supporting GPT 5.4 class reasoning');
+    expect(readDist()).toContain('Runs on OpenAI GPT-5.4 reasoning');
   });
 
   it('contains the primary CTA', () => {
