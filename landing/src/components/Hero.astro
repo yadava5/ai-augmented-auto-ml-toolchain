@@ -7,8 +7,8 @@
   <a href="#product" class="hero-pulse-link">
     <span class="hero-pulse-dot" aria-hidden="true"></span>
     <span class="hero-pulse-text">
-      <span class="hero-pulse-text-full">Runs on OpenAI GPT-5.4 reasoning</span>
-      <span class="hero-pulse-text-short">Runs on GPT-5.4</span>
+      <span class="hero-pulse-text-full">Powered by frontier LLMs</span>
+      <span class="hero-pulse-text-short">Frontier LLMs</span>
     </span>
     <svg class="hero-pulse-arrow" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <path d="M3.5 8H12.5M12.5 8L8.5 4M12.5 8L8.5 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -27,6 +27,10 @@
 
   <div class="hero-cta-row">
     <span class="hero-cta hero-cta-soon" aria-disabled="true">Coming soon</span>
+    <p class="hero-cta-note">
+      In active development — seeking collaborators &amp; sponsors.
+      <a class="hero-cta-contact" href="mailto:aesh.03.23@gmail.com">Get in touch →</a>
+    </p>
   </div>
 </section>
 
@@ -286,9 +290,33 @@
   .hero-cta-row {
     margin-top: 40px;
     display: flex;
-    justify-content: center;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
     opacity: 0;
     animation: hero-pill-enter 500ms var(--ease-out-quart) 1600ms forwards;
+  }
+
+  /* Auth is "Coming soon", so this line gives visitors a real way to reach
+     out to contribute or sponsor the project while it's in development. */
+  .hero-cta-note {
+    margin: 0;
+    font-family: 'Geist Mono Variable', ui-monospace, monospace;
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: var(--text-dim);
+  }
+  .hero-cta-contact {
+    color: var(--text-muted);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    white-space: nowrap;
+    transition: color var(--dur-fast) var(--ease-linear-default),
+                border-color var(--dur-fast) var(--ease-linear-default);
+  }
+  .hero-cta-contact:hover {
+    color: var(--text);
+    border-bottom-color: hsl(var(--border-accent, var(--border)));
   }
   .hero-cta {
     font-family: 'Inter Variable', sans-serif;
