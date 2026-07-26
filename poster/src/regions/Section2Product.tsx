@@ -164,7 +164,7 @@ export const Section2Product: React.FC = () => (
     headline="An agent you can approve."
     footnote={{
       label: "Screenshot",
-      text: "Training phase, captured live from agentic-automl.vercel.app via Playwright",
+      text: "Training phase, captured live from agentic-automl-platform.vercel.app via Playwright",
     }}
   >
     <div
