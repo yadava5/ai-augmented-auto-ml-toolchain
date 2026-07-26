@@ -297,8 +297,8 @@ type ActionLinkData = {
 };
 
 const ACTION_LINKS: readonly ActionLinkData[] = [
-  { url: "agentic-automl.vercel.app", delay: LINK_1_DELAY },
-  { url: "agentic-automl.vercel.app/repo", delay: LINK_2_DELAY },
+  { url: "agentic-automl-platform.vercel.app", delay: LINK_1_DELAY },
+  { url: "agentic-automl-platform.vercel.app/repo", delay: LINK_2_DELAY },
 ];
 
 // ============================================================================
