@@ -13,8 +13,8 @@
 export const BRAND = {
   name: "Agentic AutoML Platform",
   subtitle: "From dataset to deployed models, agentically and autonomously.",
-  liveUrl: "agentic-automl.vercel.app",
-  qrTarget: "https://agentic-automl.vercel.app",
+  liveUrl: "agentic-automl-platform.vercel.app",
+  qrTarget: "https://agentic-automl-platform.vercel.app",
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -121,7 +121,7 @@ export const GUARDRAIL = {
 /** Quality — TOP 15% is the tightest honest framing that covers every dataset. */
 export const QUALITY = {
   headline: "TOP 15% on every Kaggle benchmark",
-  heroRank: 92,
+  heroRank: 85,
   baselineRank: 50,
   footnote: "held-out test · 5 reps · 80/20 stratified · seed = 42",
 } as const;
@@ -152,7 +152,7 @@ export const LEDGER_CARDS = [
 // ---------------------------------------------------------------------------
 
 export const JOURNEY = {
-  commits: 2123,
+  commits: 2172,
   issues: 324,
   mrs: 153,
   activeDays: 61,
@@ -161,7 +161,7 @@ export const JOURNEY = {
   files: 2264,
   peakCallout: "+420 commits · week of Apr 5",
   totalsLine:
-    "2,123 commits · 324 issues · 153 MRs · 61 active days · 11 months",
+    "2,172 commits · 324 issues · 153 MRs · 61 active days · 11 months",
 } as const;
 
 /** 17 Sun-anchored weekly buckets (video/config/journey-content.ts:41-59). */
