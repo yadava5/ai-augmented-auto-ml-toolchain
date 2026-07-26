@@ -136,7 +136,7 @@ export const PAGES: readonly PageSpec[] = [
   {
     num: 23, kind: "divider", parity: "recto", sectionKey: "05_BUILD",
     chapterNum: "05", chapterTitle: "BUILD",
-    subtitle: "eleven months · two engineers · 1,989 commits",
+    subtitle: "eleven months · two engineers · 2,172 commits",
     artSlot: "/art/div-05-build.svg",
     chapterIndex: 5, chapterTotal: 5,
   },
