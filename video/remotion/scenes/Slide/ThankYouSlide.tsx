@@ -76,7 +76,7 @@ const QUESTIONS_DELAY = 90;
 // --- Action link ---------------------------------------------------------- //
 
 const LINK_Y = 860;
-const LINK_URL = "agentic-automl.vercel.app";
+const LINK_URL = "agentic-automl-platform.vercel.app";
 const LINK_URL_FONT_SIZE = 28;
 const LINK_BULLET_FONT_SIZE = 38;
 const LINK_BULLET_TO_URL_GAP = 14;
