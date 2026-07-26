@@ -4,49 +4,44 @@ import { INSIDE } from "../content";
 import { shadowIdFor } from "./primitives";
 
 /**
- * MCP tool registry — page 18. Central MCP hub with 20 tools laid out in
+ * MCP tool registry — page 18. Central MCP hub with the 12 tools the real
+ * MCP server (backend/src/services/mcp/mcpServer.ts) registers, laid out in
  * four quadrant CLUSTERS around it (not in radial arcs, which collide for
  * long tool names). Each cluster is a vertical list of chips connected to
  * the hub by a colored spoke.
  *
  *   Cluster layout on a 5.6"×7" canvas:
- *     TL  inspect  (4 tools)        TR  transform (6 tools)
- *     BL  validate (4 tools)        BR  execute   (2 tools)
- *                                       + search  (2 tools)
- *   Plan (2 tools) flanks the hub horizontally: propose_plan on the left
- *   of the hub, request_approval on the right.
+ *     TL  inspect   (5 tools)       TR  transform (5 tools)
+ *     BL  search    (1 tool)        BR  execute   (1 tool)
  *
- * The 5 most-used tools (`get_dataset_profile`, `edit_cell`,
- * `run_notebook_cell`, `propose_plan`, `request_approval`) get a
- * highlighter halo + italic serif margin caption.
+ *   Planning / approval (ask_user, propose_*) run through the LangGraph FSM
+ *   as LLM tools, not MCP-registered tools, so they are not shown here.
+ *
+ * The 4 workhorse tools (`get_dataset_profile`, `edit_cell`, `run_cell`,
+ * `search_documents`) get a highlighter halo + italic serif margin caption.
  */
 
-type Category = "inspect" | "transform" | "validate" | "execute" | "plan" | "search";
+type Category = "inspect" | "transform" | "search" | "execute";
 
 const CATEGORY_COLOR: Record<Category, string> = {
   inspect:   COLORS.ACCENT,
   transform: COLORS.MIAMI_RED,
-  validate:  COLORS.SUCCESS,
+  search:    COLORS.AMBER,
   execute:   COLORS.INK,
-  plan:      COLORS.AMBER,
-  search:    COLORS.NEUTRAL_600,
 };
 
 const HIGHLIGHT_TOOLS: Record<string, string> = {
   get_dataset_profile: "samples 20 rows",
   edit_cell:           "patches in place",
-  run_notebook_cell:   "streams output",
-  propose_plan:        "drafts 3-step plan",
-  request_approval:    "blocks until user commits",
+  run_cell:            "streams output",
+  search_documents:    "semantic doc search",
 };
 
 // Legend reading order = the order labels read around the page.
 const LEGEND_ORDER: Array<{ key: Category; label: string }> = [
-  { key: "plan",      label: "PLAN"      },
   { key: "inspect",   label: "INSPECT"   },
   { key: "transform", label: "TRANSFORM" },
   { key: "execute",   label: "EXECUTE"   },
-  { key: "validate",  label: "VALIDATE"  },
   { key: "search",    label: "SEARCH"    },
 ];
 
@@ -67,13 +62,14 @@ type Cluster = {
 };
 
 // Clusters pushed in from the canvas edge so captions for the outermost
-// highlighted chip (get_dataset_profile, edit_cell, run_notebook_cell) have
-// room to land above the chip (between chip and the cluster eyebrow label)
-// without colliding with the next chip below.
-const CLUSTERS: Record<Exclude<Category, "plan" | "search">, Cluster> = {
+// highlighted chip (get_dataset_profile, edit_cell) have room to land above
+// the chip (between chip and the cluster eyebrow label) without colliding
+// with the next chip below. Each of the 4 real tool categories owns one
+// quadrant.
+const CLUSTERS: Record<Category, Cluster> = {
   inspect:   { anchorX: 100, anchorY: 160, direction: "tl" },
   transform: { anchorX: DW - 100, anchorY: 160, direction: "tr" },
-  validate:  { anchorX: 100, anchorY: DH - 140, direction: "bl" },
+  search:    { anchorX: 100, anchorY: DH - 140, direction: "bl" },
   execute:   { anchorX: DW - 100, anchorY: DH - 160, direction: "br" },
 };
 
@@ -105,7 +101,7 @@ export const MCPToolRegistry: React.FC<{
       (acc[c] ??= []).push(t);
       return acc;
     },
-    { inspect: [], transform: [], validate: [], execute: [], plan: [], search: [] },
+    { inspect: [], transform: [], search: [], execute: [] },
   );
 
   // Build cluster-placed tools for the 4 quadrant clusters.
@@ -123,21 +119,9 @@ export const MCPToolRegistry: React.FC<{
     });
   });
 
-  // Plan tools flank the hub horizontally: propose_plan on the left edge of
-  // the hub, request_approval on the right. Both at the hub's vertical
-  // centerline.
-  const planPlaced: Placed[] = byCategory.plan.map((t) => {
-    const x = t.name === "propose_plan" ? HUB_X - 130 : HUB_X + 130;
-    return { ...t, x, y: HUB_Y - 70, highlighted: isHighlighted(t.name) };
-  });
-
-  // Search tools sit directly below the hub on the bottom axis.
-  const searchPlaced: Placed[] = byCategory.search.map((t, i) => {
-    const x = HUB_X - 74 + i * 148;
-    return { ...t, x, y: HUB_Y + 126, highlighted: isHighlighted(t.name) };
-  });
-
-  const all = [...clusterPlaced, ...planPlaced, ...searchPlaced];
+  // All 12 tools live in the 4 quadrant clusters; there is no separate
+  // hub-flank or below-hub row now that plan/validate categories are gone.
+  const all = clusterPlaced;
 
   return (
     <svg
@@ -252,28 +236,18 @@ export const MCPToolRegistry: React.FC<{
             positioned so it never overlaps its chip or the hub. */}
         {all.filter((t) => t.highlighted).map((t) => {
           const cap = HIGHLIGHT_TOOLS[t.name] ?? "";
-          // Caption placement per highlighted tool (hand-tuned for the
-          // fixed 5-tool set).
-          //  • get_dataset_profile: TL cluster, caption pushed right-of-chip
-          //    on the same row; reads into the gutter between TL and the
-          //    hub.
-          //  • edit_cell: TR cluster, caption pushed left-of-chip on the
-          //    same row.
-          //  • run_notebook_cell: BR execute cluster; caption above-left of
-          //    the chip so it lands above the EXECUTE eyebrow.
-          //  • propose_plan/request_approval: flanking the hub at a row of
-          //    their own; captions above the chip in the empty space.
-          // Captions land ABOVE each highlighted chip in the gap between
-          // the cluster eyebrow label and the top of the chip stack. Same
-          // for the flanking plan chips. For run_notebook_cell (bottom of
-          // the execute stack), the caption goes BELOW the chip toward the
-          // EXECUTE eyebrow label.
+          // Caption placement per highlighted workhorse (hand-tuned for the
+          // fixed 4-tool set). Each caption lands in the open gap between a
+          // chip and its cluster eyebrow label:
+          //  • get_dataset_profile: TL inspect top — caption ABOVE the chip.
+          //  • edit_cell: TR transform top — caption ABOVE the chip.
+          //  • run_cell: BR execute (solo) — caption BELOW, toward the label.
+          //  • search_documents: BL search (solo) — caption BELOW the chip.
           const PLACE: Record<string, { dx: number; dy: number; anchor: "start" | "middle" | "end" }> = {
-            propose_plan:        { dx: 0, dy: -22, anchor: "middle" },
-            request_approval:    { dx: 0, dy: -22, anchor: "middle" },
             get_dataset_profile: { dx: 0, dy: -24, anchor: "middle" },
             edit_cell:           { dx: 0, dy: -24, anchor: "middle" },
-            run_notebook_cell:   { dx: 0, dy:  28, anchor: "middle" },
+            run_cell:            { dx: 0, dy:  28, anchor: "middle" },
+            search_documents:    { dx: 0, dy:  28, anchor: "middle" },
           };
           const p = PLACE[t.name] ?? { dx: 0, dy: -22, anchor: "middle" as const };
           return (
