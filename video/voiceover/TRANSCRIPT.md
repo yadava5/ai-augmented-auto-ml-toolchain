@@ -140,7 +140,7 @@ Slide: 7 chapters left, 3 proofs right, blue pulse on chapter 3 (LangGraph).
 
 ### URL intro — no voiceover (5.5s, pure Remotion)
 
-A new-tab backdrop zooms into the URL pill and types `agentic-automl.vercel.app`. Pixel-continuous hand-off into the landing scroll.
+A new-tab backdrop zooms into the URL pill and types `agentic-automl-platform.vercel.app`. Pixel-continuous hand-off into the landing scroll.
 
 ---
 
