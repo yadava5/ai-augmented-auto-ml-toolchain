@@ -14,7 +14,7 @@ import { COLORS, FONTS } from "../tokens";
  * cluster and the notebook diff is visible, then snaps a single PNG.
  */
 
-const URL_LABEL = "agentic-automl.vercel.app/p/novacraft/training";
+const URL_LABEL = "agentic-automl-platform.vercel.app/p/novacraft/training";
 
 export const ProductMockup: React.FC<{
   width: number;
