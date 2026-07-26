@@ -69,7 +69,7 @@ export const SandboxArchitecture: React.FC<{
       fill: "#FFFFFF",
       stroke: COLORS.INK,
       label: "Backend → Jupyter Kernel Gateway",
-      sub: "Express 5 · REST /execute",
+      sub: "Express 5 · WebSocket channel",
     },
     {
       x: CONTENT_LEFT + 16, y: DOCKER_Y, w: CONTENT_W - 32, h: LAYER_H,
@@ -83,8 +83,8 @@ export const SandboxArchitecture: React.FC<{
       x: CONTENT_LEFT + 48, y: KERNEL_Y, w: CONTENT_W - 96, h: KERNEL_H,
       fill: "#FFFFFF",
       stroke: COLORS.INK,
-      label: "Python 3.12 kernel",
-      sub: "pandas · sklearn · xgboost",
+      label: "Python 3.11 kernel",
+      sub: "pandas · numpy · sklearn",
     },
   ];
 
@@ -97,7 +97,7 @@ export const SandboxArchitecture: React.FC<{
     { y: BACKEND_Y + LAYER_H / 2,  label: "CPU",        value: "1 CORE"           },
     { y: DOCKER_Y + 18,            label: "USER",       value: "NON-ROOT"         },
     { y: DOCKER_Y + LAYER_H - 16,  label: "ROOT FS",    value: "READ-ONLY"        },
-    { y: KERNEL_Y + 12,            label: "NETWORK",    value: "EGRESS ALLOW-LIST" },
+    { y: KERNEL_Y + 12,            label: "NETWORK",    value: "ISOLATED · NO EGRESS" },
     { y: KERNEL_Y + KERNEL_H - 8,  label: "COLD-START", value: "< 1 s"            },
   ];
 
