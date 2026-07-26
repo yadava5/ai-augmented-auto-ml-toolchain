@@ -14,7 +14,7 @@ export const BrowserChromeFrame: React.FC<{
   children: React.ReactNode;
   style?: React.CSSProperties;
 }> = ({
-  url = "agentic-automl.vercel.app",
+  url = "agentic-automl-platform.vercel.app",
   width = "100%",
   height = "auto",
   children,
