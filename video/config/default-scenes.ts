@@ -290,7 +290,7 @@ const DEMO_SCENES: SelectableScene[] = [
   // chrome so the browser "page-load" reads as a single continuous shot.
   {
     type: "urlIntro",
-    url: "agentic-automl.vercel.app",
+    url: "agentic-automl-platform.vercel.app",
     backgroundAsset: "backgrounds/newtab-bg.webp",
     durationInFrames: 330,
   },
@@ -306,7 +306,7 @@ const DEMO_SCENES: SelectableScene[] = [
     videoFile: "landing.mp4",
     videoRoot: "captures",
     chrome: "browser",
-    url: "agentic-automl.vercel.app",
+    url: "agentic-automl-platform.vercel.app",
     voiceoverFile: "scene-landing.mp3",
     durationInFrames: 3336, // 55.6s @ 60 fps fallback — meta.json wins.
     startOffset: 0,
