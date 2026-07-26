@@ -23,8 +23,8 @@ import { ApprovalGateCallout } from "../primitives/ApprovalGateCallout";
 // ---------------------------------------------------------------------------
 // What-we-catch exemplars — each row is (source line, verdict, reason).
 // Grounded in the product's real allow-list: stdlib subprocess is blocked;
-// os.environ reads of shell secrets are blocked; torch is on the ML
-// whitelist; outbound network is egress-filtered; arbitrary exec is denied.
+// os.environ reads of shell secrets are blocked; sklearn is on the ML
+// whitelist; outbound network is isolated (no egress); arbitrary exec is denied.
 // ---------------------------------------------------------------------------
 
 type CatchRow = {
@@ -38,7 +38,7 @@ const CATCH_ROWS: ReadonlyArray<CatchRow> = [
   { snippet: "os.getenv(\"SECRET_KEY\")",   verdict: "BLOCKED", reason: "env whitelist"        },
   { snippet: "requests.get(\"https://…\")", verdict: "BLOCKED", reason: "egress filter"        },
   { snippet: "open(\"/etc/passwd\", \"w\")", verdict: "BLOCKED", reason: "read-only rootfs"    },
-  { snippet: "import torch",                verdict: "ALLOWED", reason: "ML lib whitelist"     },
+  { snippet: "import sklearn",              verdict: "ALLOWED", reason: "ML lib whitelist"     },
   { snippet: "df.groupby(\"age\").mean()",  verdict: "ALLOWED", reason: "pandas · pure-python" },
 ];
 
