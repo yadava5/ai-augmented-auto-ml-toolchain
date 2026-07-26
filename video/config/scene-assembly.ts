@@ -46,7 +46,7 @@ const INTRO_SLIDES: SlideScene[] = [
 const INTRO_DEMO_BEATS: SelectableScene[] = [
   {
     type: "urlIntro",
-    url: "agentic-automl.vercel.app",
+    url: "agentic-automl-platform.vercel.app",
     backgroundAsset: "backgrounds/newtab-bg.webp",
     durationInFrames: 330,
   } satisfies UrlIntroScene,
@@ -55,7 +55,7 @@ const INTRO_DEMO_BEATS: SelectableScene[] = [
     videoFile: "landing-recorded.mp4",
     videoRoot: "captures",
     chrome: "browser",
-    url: "agentic-automl.vercel.app",
+    url: "agentic-automl-platform.vercel.app",
     durationInFrames: 4518,
     startOffset: 0,
     endOffset: 0,
