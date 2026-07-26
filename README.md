@@ -3,13 +3,19 @@
 </p>
 
 <p align="center">
-  <img src="https://github.com/yadava5/ai-augmented-auto-ml-toolchain/actions/workflows/ci.yml/badge.svg" alt="CI">
+  <img src="https://gitlab.csi.miamioh.edu/2026-senior-design-projects/ai-augmented-automl-toolchain/ai-augmented-auto-ml-toolchain/badges/main/pipeline.svg?style=flat-square" alt="pipeline">
   <img src="https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square" alt="license">
   <img src="https://img.shields.io/badge/node-22%20LTS-brightgreen?style=flat-square&logo=nodedotjs" alt="node">
   <img src="https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white" alt="typescript">
   <img src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black" alt="react">
   <img src="https://img.shields.io/badge/Express-5-000000?style=flat-square&logo=express&logoColor=white" alt="express">
   <img src="https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="postgresql">
+</p>
+
+<p align="center">
+  <a href="https://agentic-automl-platform.vercel.app"><strong>Live site</strong></a>
+  &nbsp;·&nbsp;
+  <a href="https://agentic-automl-platform.vercel.app/system-card"><strong>System Card</strong></a>
 </p>
 
 ---
@@ -74,7 +80,7 @@ Deploy trained models through a dedicated deployment phase with readiness checks
 
 ## Under the Hood
 
-**LangGraph Orchestration.** A state-machine engine coordinates multi-step ML pipelines through MCP tool calls, with phase-aware routing that selects the right tools for each workflow stage.
+**LangGraph Orchestration.** A state-machine engine coordinates multi-step ML pipelines through a registry of 40+ MCP tools — spanning data profiling, preprocessing, feature engineering, training, and experiments — with phase-aware routing that exposes the right tools for each workflow stage.
 
 **RAG with Hybrid Search.** Ingest domain documents to ground LLM responses in your data. Combines embedding similarity with keyword search for cited, context-aware answers.
 
@@ -159,6 +165,13 @@ docs/                 Branding assets, API contracts, design system
 - [`docs/design-system.md`](docs/design-system.md) - UI guidelines and component patterns
 - [`docs/beta-zero-paid-deploy.md`](docs/beta-zero-paid-deploy.md) - zero-paid beta deploy runbook (Vercel + DuckDNS + single-host backend)
 
+## Authors
+
+Built as a Miami University CSE 449 Senior Design project.
+
+- **[Ayush Yadav](https://github.com/yadava5)** — Author. Built the entire frontend and end-to-end integration.
+- **Shree Chaturvedi** — Optimization and strategy.
+
 ## License
 
-[GPL-3.0](LICENSE)
+Licensed under the [GNU General Public License v3.0](LICENSE).
