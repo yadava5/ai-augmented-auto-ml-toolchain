@@ -33,7 +33,7 @@ export {
 export const ABSTRACT = {
   greeting: "Welcome.",
   body:
-    "Agentic AutoML automates the 80% of machine-learning work that isn't training — cleaning, engineering, shipping. In our benchmarks it gets from a raw CSV to a deployed model 7× faster than manual Jupyter, while catching 16 of 20 synthetic data flaws (sklearn catches 3). This booklet walks the why, the how, what's inside, what we measured, and how we built it.",
+    "Agentic AutoML automates the 80% of machine-learning work that isn't training — cleaning, engineering, shipping. In our benchmarks it gets from a raw CSV to a deployed model 7× faster than manual Jupyter, while scoring 16 of 20 guardrail points — 8 of 10 seeded data flaws, weighted (sklearn scores 3). This booklet walks the why, the how, what's inside, what we measured, and how we built it.",
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -95,13 +95,13 @@ export const WHY = {
       { id: "03", label: "runtime",   headline: "Sandboxed Python is fast and safe enough now." },
     ],
     body: [
-      "Models finally read tabular schemas with function calling, typed JSON, and reliable tool-call fidelity — a shift that only really landed with Claude 3.5 / GPT-4o in 2024, and that the GPT-5 series made production-grade in 2026.",
+      "Models finally read tabular schemas with function calling, typed JSON, and reliable tool-call fidelity — a shift that only really landed with Claude 3.5 / GPT-4o in 2024, and that frontier LLMs made production-grade for tool-use by 2026.",
       "Protocols give agents a durable tool contract. MCP standardizes how an agent sees the product's capabilities, logs every call, and enforces allowlists per stage.",
       "Runtime is now fast and safe enough. Containerized Jupyter kernels start in under a second; a bad cell fails inside the sandbox instead of trashing the notebook.",
     ],
     sidebar: [
-      "GPT-5.4: tool-call fidelity",
-      "MCP registry: 20+ tools",
+      "GPT-4o-mini: tool-call fidelity",
+      "MCP registry: 12 tools",
       "Docker: 2GB RAM · 1 CPU",
       "Jupyter Kernel Gateway: < 1s",
     ],
@@ -143,7 +143,7 @@ export const WHY = {
       },
       {
         year: "2026",
-        unlock: "GPT-5.4 · agentic AutoML becomes buildable",
+        unlock: "Frontier LLM tool-use · agentic AutoML becomes buildable",
         gap: "Schema-aware reasoning + sub-second sandboxes + a mature MCP ecosystem — the stack we're shipping.",
         isNow: true,
       },
@@ -326,7 +326,7 @@ export const HOW = {
         { label: "APPROVAL MODE", value: "human-in-loop"   },
       ],
       toolCall: {
-        tool: "request_approval",
+        tool: "ask_user",
         args: {
           stage: "commit",
           diff: "impute_median(cholesterol)",
@@ -388,7 +388,7 @@ export const HOW = {
         { label: "DEFAULT MODEL", value: "GradientBoosting"   },
       ],
       toolCall: {
-        tool: "propose_plan",
+        tool: "propose_training_plan",
         args: {
           task: "binary_classification",
           model: "GradientBoostingClassifier",
@@ -460,40 +460,38 @@ export const INSIDE = {
   mcpRegistry: {
     headline: "The MCP tool registry.",
     body:
-      "20+ tools expose the product to the agent through the Model Context Protocol. Five see the most use: get_dataset_profile (inspect), edit_cell (transform), run_notebook_cell (execute), propose_plan (plan), and request_approval (gate). Every call is logged against the run.",
+      "Twelve tools expose the product to the agent through the Model Context Protocol, grouped into four families: inspect, transform, execute, and search. The workhorses are get_dataset_profile (inspect), edit_cell (transform), run_cell (execute), and search_documents (search). Every call is logged against the run.",
+    // The real MCP server (backend/src/services/mcp/mcpServer.ts) registers
+    // exactly these 12 tools via the @modelcontextprotocol SDK — four
+    // read-only "inspect" tools, five notebook-cell "transform" tools, one
+    // "search" (RAG) tool, and one "execute" tool. Planning / approval run
+    // through the LangGraph FSM (ask_user, propose_*), which are LLM tools
+    // rather than MCP-registered tools, so they are not shown here.
     tools: [
       { name: "get_dataset_profile", category: "inspect"   },
-      { name: "describe_column",     category: "inspect"   },
-      { name: "sample_rows",         category: "inspect"   },
+      { name: "get_dataset_sample",  category: "inspect"   },
+      { name: "list_project_files",  category: "inspect"   },
       { name: "read_cell",           category: "inspect"   },
-      { name: "search_docs",         category: "search"    },
-      { name: "search_notebook",     category: "search"    },
+      { name: "list_cells",          category: "inspect"   },
+      { name: "search_documents",    category: "search"    },
       { name: "edit_cell",           category: "transform" },
-      { name: "append_cell",         category: "transform" },
+      { name: "write_cell",          category: "transform" },
+      { name: "insert_cell",         category: "transform" },
       { name: "delete_cell",         category: "transform" },
-      { name: "rename_column",       category: "transform" },
-      { name: "drop_column",         category: "transform" },
-      { name: "cast_dtype",          category: "transform" },
-      { name: "run_notebook_cell",   category: "execute"   },
-      { name: "kernel_status",       category: "execute"   },
-      { name: "propose_plan",        category: "plan"      },
-      { name: "request_approval",    category: "plan"      },
-      { name: "validate_schema",     category: "validate"  },
-      { name: "validate_types",      category: "validate"  },
-      { name: "detect_leakage",      category: "validate"  },
-      { name: "profile_splits",      category: "validate"  },
+      { name: "reorder_cells",       category: "transform" },
+      { name: "run_cell",            category: "execute"   },
     ],
   },
   sandbox: {
     headline: "Sandbox & kernel.",
     body:
-      "Every cell runs inside a Docker container with hard limits: 2GB RAM, 1 CPU, non-root user, read-only root filesystem. A Jupyter Kernel Gateway is the only channel into the container; the gateway's REST surface is the agent's sole execution path. If the container dies, the run fails cleanly — nothing is left behind.",
+      "Every cell runs inside a Docker container with hard limits: 2GB RAM, 1 CPU, non-root user, read-only root filesystem. A Jupyter Kernel Gateway is the only channel into the container; the gateway's WebSocket channel is the agent's sole execution path. If the container dies, the run fails cleanly — nothing is left behind.",
     limits: [
       { label: "memory",       value: "2GB"                },
       { label: "cpu",          value: "1 core"             },
       { label: "user",         value: "non-root"           },
       { label: "root fs",      value: "read-only"          },
-      { label: "network",      value: "egress-allowlisted" },
+      { label: "network",      value: "isolated (no egress)" },
       { label: "cold-start",   value: "< 1s"               },
     ],
     approvalGate:
@@ -568,7 +566,7 @@ export const GUARDRAIL_NUANCE = {
 
 export const BUILD = {
   divider: {
-    subtitle: "eleven months · two engineers · 1,989 commits",
+    subtitle: "eleven months · two engineers · 2,172 commits",
   },
   sprints: [
     {
@@ -595,7 +593,7 @@ export const BUILD = {
       num: "S8",
       dateRange: "Feb 22 – Mar 21",
       milestones: [
-        "Solo sprint: 205 commits.",
+        "Solo sprint: 620 commits.",
         "Training panel + experiments dashboard.",
         "Benchmark harness: 5 datasets · 25 runs.",
       ],
@@ -614,7 +612,7 @@ export const BUILD = {
   ],
   pullQuotes: {
     left:  "Brain and body. We split the system in half.",
-    right: "Sprint 8 was solo: 205 commits.",
+    right: "Sprint 8 was solo: 620 commits.",
   },
 } as const;
 
@@ -653,9 +651,9 @@ export const TEAM_PAGE = {
 export const CLOSING = {
   tagline: "From dataset to deployed models, agentically and autonomously.",
   liveLabel: "LIVE DEMO",
-  liveUrl: "agentic-automl.vercel.app",
+  liveUrl: "agentic-automl-platform.vercel.app",
   repoLabel: "REPO",
-  repoUrl: "agentic-automl.vercel.app/repo",
+  repoUrl: "agentic-automl-platform.vercel.app/repo",
   leftArrowLabel: "try it",
   rightArrowLabel: "read it",
 } as const;
