@@ -299,7 +299,7 @@ const READING_PATHS = [
 
 const AT_A_GLANCE = [
   { key: "11 months",   val: "from first commit to expo." },
-  { key: "1,989 commits", val: "across two engineers, peak 420/wk." },
+  { key: "2,172 commits", val: "across two engineers, peak 420/wk." },
   { key: "5 chapters · 27 pages", val: "read in twenty minutes." },
 ] as const;
 
