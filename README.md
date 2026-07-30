@@ -4,7 +4,7 @@
 
 <p align="center">
   <img src="https://gitlab.csi.miamioh.edu/2026-senior-design-projects/ai-augmented-automl-toolchain/ai-augmented-auto-ml-toolchain/badges/main/pipeline.svg?style=flat-square" alt="pipeline">
-  <img src="https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square" alt="license">
+  <img src="https://img.shields.io/badge/license-PolyForm%20Noncommercial-blue?style=flat-square" alt="license">
   <img src="https://img.shields.io/badge/node-22%20LTS-brightgreen?style=flat-square&logo=nodedotjs" alt="node">
   <img src="https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white" alt="typescript">
   <img src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black" alt="react">
@@ -174,4 +174,6 @@ Built as a Miami University CSE 449 Senior Design project.
 
 ## License
 
-Licensed under the [GNU General Public License v3.0](LICENSE).
+Source-available under the [PolyForm Noncommercial License 1.0.0](LICENSE). Free to use, self-host, study and modify for any **noncommercial** purpose.
+
+Commercial use — running it as a service, reselling it, or building a commercial product on it — requires a separate commercial licence. Copyright is held jointly by **Ayush Yadav** and **Shree Chaturvedi**, and neither author can grant a commercial licence alone. To discuss commercial use, scaling, or sponsorship: aesh.03.23@gmail.com.
