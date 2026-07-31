@@ -31,6 +31,13 @@ export type {
 
 export { createNl2SqlService };
 
+export {
+  __clearNlGenerationCacheForTests,
+  commitNlGeneration,
+  deriveNlGenerationCacheKey,
+  readNlGeneration
+} from './generationCache.js';
+
 function createNl2SqlService(overrides: {
   datasetRepository?: import('../../repositories/datasetRepository.js').DatasetRepository;
   getClient?: (model: string) => import('../llm/llmClient.js').LlmClient;
