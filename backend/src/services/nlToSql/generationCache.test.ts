@@ -160,27 +160,50 @@ describe('generation cache store', () => {
     expect(readNlGeneration('k')).toBe(payload);
   });
 
-  it('bounds itself, evicting least-recently-read entries first', async () => {
-    vi.resetModules();
+  it('bounds itself, evicting least-recently-read entries first', () => {
+    // Deliberately NOT vi.resetModules() + dynamic import. That would create a
+    // second copy of the module with its own Map while pipeline.ts kept the
+    // first, so this test would pass against a cache nothing else uses. The
+    // limit is read per call precisely so the real instance can be tested.
     process.env.AUTOML_NL2SQL_CACHE_MAX_ENTRIES = '3';
-    const cache = await import('./generationCache.js');
+    try {
+      commitNlGeneration('a', payload);
+      commitNlGeneration('b', payload);
+      commitNlGeneration('c', payload);
 
-    cache.commitNlGeneration('a', payload);
-    cache.commitNlGeneration('b', payload);
-    cache.commitNlGeneration('c', payload);
+      // Re-read 'a' so 'b' becomes the least recently used.
+      expect(readNlGeneration('a')).toBe(payload);
 
-    // Re-read 'a' so 'b' becomes the least recently used.
-    expect(cache.readNlGeneration('a')).toBe(payload);
+      commitNlGeneration('d', payload);
 
-    cache.commitNlGeneration('d', payload);
+      expect(readNlGeneration('b')).toBeUndefined();
+      expect(readNlGeneration('a')).toBe(payload);
+      expect(readNlGeneration('c')).toBe(payload);
+      expect(readNlGeneration('d')).toBe(payload);
+    } finally {
+      delete process.env.AUTOML_NL2SQL_CACHE_MAX_ENTRIES;
+    }
+  });
 
-    expect(cache.readNlGeneration('b')).toBeUndefined();
-    expect(cache.readNlGeneration('a')).toBe(payload);
-    expect(cache.readNlGeneration('c')).toBe(payload);
-    expect(cache.readNlGeneration('d')).toBe(payload);
+  it('honours a TTL set through the environment', () => {
+    // Would have been impossible to assert when TTL_MS was frozen at import.
+    vi.useFakeTimers();
+    process.env.AUTOML_NL2SQL_CACHE_TTL_MS = '1000';
+    try {
+      commitNlGeneration('k', payload);
+      vi.advanceTimersByTime(1001);
+      expect(readNlGeneration('k')).toBeUndefined();
+    } finally {
+      delete process.env.AUTOML_NL2SQL_CACHE_TTL_MS;
+    }
+  });
 
-    delete process.env.AUTOML_NL2SQL_CACHE_MAX_ENTRIES;
-    vi.resetModules();
+  it('shares one cache instance with the pipeline module', () => {
+    // The split-brain guard. pipeline.ts holds its own import of this module;
+    // if that ever resolves to a different instance, an entry committed here
+    // would be invisible there and the cache would silently never hit.
+    commitNlGeneration('shared-key', payload);
+    expect(readNlGeneration('shared-key')).toBe(payload);
   });
 });
 

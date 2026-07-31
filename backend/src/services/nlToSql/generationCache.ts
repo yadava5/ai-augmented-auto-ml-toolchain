@@ -68,9 +68,23 @@ function num(name: string, fallback: number): number {
 /**
  * Entries are small (a SQL string plus its explanation), so the ceiling is
  * about bounding a long-lived process rather than about memory pressure.
+ *
+ * Read per call, not frozen at import. Two reasons, and the second is the
+ * important one: it makes all three env vars behave the same way (a
+ * module-load constant would have made MAX/TTL silently un-tunable while
+ * DISABLED was live), and it means a test can change the limit without
+ * `vi.resetModules()`. Resetting modules would hand the test a *second* copy
+ * of this module with its own `cache` Map while pipeline.ts kept using the
+ * first — a split-brain cache, and the same singleton-orphaning shape that
+ * made Applied's RLS suite silently test the wrong database.
  */
-const MAX_ENTRIES = num('AUTOML_NL2SQL_CACHE_MAX_ENTRIES', 500);
-const TTL_MS = num('AUTOML_NL2SQL_CACHE_TTL_MS', 30 * 60 * 1000);
+function maxEntries(): number {
+  return num('AUTOML_NL2SQL_CACHE_MAX_ENTRIES', 500);
+}
+
+function ttlMs(): number {
+  return num('AUTOML_NL2SQL_CACHE_TTL_MS', 30 * 60 * 1000);
+}
 
 /** Escape hatch: set to "1" to disable without a redeploy of changed code. */
 function cacheDisabled(): boolean {
@@ -152,13 +166,15 @@ export function readNlGeneration(key: string): GeneratedSqlV2 | undefined {
  * ran — which is the repaired statement when a repair was needed.
  */
 export function commitNlGeneration(key: string, payload: GeneratedSqlV2): void {
-  if (cacheDisabled() || MAX_ENTRIES === 0 || TTL_MS === 0) return;
+  const limit = maxEntries();
+  const ttl = ttlMs();
+  if (cacheDisabled() || limit === 0 || ttl === 0) return;
 
   cache.delete(key);
-  cache.set(key, { payload, expiresAt: Date.now() + TTL_MS });
+  cache.set(key, { payload, expiresAt: Date.now() + ttl });
 
   // Oldest-first eviction; Map preserves insertion order and reads re-insert.
-  while (cache.size > MAX_ENTRIES) {
+  while (cache.size > limit) {
     const oldest = cache.keys().next();
     if (oldest.done) break;
     cache.delete(oldest.value);
