@@ -143,17 +143,38 @@ type TelemetryStat = {
   green?: boolean;
 };
 
+/* MEASURED 2026-08-02, not estimated. Every figure below was produced by
+   running or counting the thing it names, because three of the five were
+   wrong and one of those was unbacked by anything at all.
+
+     tests       1,550 -> 2,397.  `vitest run` in backend gives 1,412 across
+                 127 files; frontend gives 985 across 122. 1,550 matched
+                 neither suite nor their sum.
+     coverage    97% -> 67%.  There was NO coverage artifact anywhere in this
+                 repository and neither test script emitted one, so 97% was a
+                 number with nothing behind it. Measured with
+                 `vitest run --coverage` (v8) on the backend suite:
+                 statements 66.5%, branches 53.25%, functions 65.57%,
+                 lines 67.4%. The caption now says which suite and which
+                 metric, because "coverage" unqualified is three different
+                 numbers.
+     migrations  21 -> 24.  `ls backend/migrations/*.sql` is 24 files; the
+                 highest sequence prefix is 022 (006 and 015 are duplicated),
+                 so neither reading gives 21.
+
+   LOC typed and packages are NOT verified and are left as they were —
+   flagged here rather than silently blessed. */
 const TELEMETRY: readonly TelemetryStat[] = [
   {
-    to: 1550,
+    to: 2397,
     format: (n) => Math.round(n).toLocaleString(),
     caption: "tests · all green",
     green: true,
   },
-  { to: 97, format: (n) => `${Math.round(n)}%`, caption: "coverage" },
+  { to: 67, format: (n) => `${Math.round(n)}%`, caption: "backend line coverage" },
   { to: 12000, format: (n) => Math.round(n).toLocaleString(), caption: "LOC typed" },
   { to: 62, format: (n) => `${Math.round(n)}`, caption: "packages" },
-  { to: 21, format: (n) => `${Math.round(n)}`, caption: "schema migrations" },
+  { to: 24, format: (n) => `${Math.round(n)}`, caption: "schema migrations" },
 ] as const;
 
 // --- Geometry --------------------------------------------------------------
