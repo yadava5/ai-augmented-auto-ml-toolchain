@@ -102,6 +102,15 @@ export interface GenerateSqlV2Options {
   defaultTable?: string;
   onProgress?: (event: NlProgressEvent) => void;
   onModelWork?: (event: NlModelWorkEvent) => void;
+  /**
+   * Receives the generation-cache key for this request, and whether the
+   * pipeline served it from cache.
+   *
+   * The caller needs the key so it can commit the entry only once the SQL has
+   * actually executed — the pipeline cannot know that, since execution and
+   * repair happen above it. See services/nlToSql/generationCache.ts.
+   */
+  onCacheKey?: (info: { key: string; hit: boolean }) => void;
 }
 
 export interface RepairSqlV2Options {

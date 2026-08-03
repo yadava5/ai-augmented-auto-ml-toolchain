@@ -4,17 +4,17 @@ import { INSIDE } from "../content";
 import { shadowIdFor } from "./primitives";
 
 /**
- * MCP tool registry — page 18. Central MCP hub with 20 tools laid out in
+ * MCP tool registry — page 18. Central MCP hub with the 12 registered tools laid out in
  * four quadrant CLUSTERS around it (not in radial arcs, which collide for
  * long tool names). Each cluster is a vertical list of chips connected to
  * the hub by a colored spoke.
  *
  *   Cluster layout on a 5.6"×7" canvas:
- *     TL  inspect  (4 tools)        TR  transform (6 tools)
- *     BL  validate (4 tools)        BR  execute   (2 tools)
- *                                       + search  (2 tools)
- *   Plan (2 tools) flanks the hub horizontally: propose_plan on the left
- *   of the hub, request_approval on the right.
+ *   Quadrant counts follow INSIDE.mcpRegistry.tools, which is now the real
+ *   registry: inspect 5, transform 5, execute 1, search 1 -- twelve total.
+ *   There is no plan category; propose_plan and request_approval were never
+ *   registered. Approval is enforced in the graph runtime
+ *   (preprocessingRuntime.ts halts on requiresApproval), not as an MCP tool.
  *
  * The 5 most-used tools (`get_dataset_profile`, `edit_cell`,
  * `run_notebook_cell`, `propose_plan`, `request_approval`) get a
@@ -32,12 +32,16 @@ const CATEGORY_COLOR: Record<Category, string> = {
   search:    COLORS.NEUTRAL_600,
 };
 
+/* Keyed by REGISTERED tool name. Three of the five keys here named tools
+   that do not exist -- run_notebook_cell, propose_plan, request_approval --
+   so their halos silently never rendered, which is why nobody noticed the
+   registry itself was fictional. Keys must match mcpServer.ts. */
 const HIGHLIGHT_TOOLS: Record<string, string> = {
-  get_dataset_profile: "samples 20 rows",
+  get_dataset_profile: "profiles the dataset",
   edit_cell:           "patches in place",
-  run_notebook_cell:   "streams output",
-  propose_plan:        "drafts 3-step plan",
-  request_approval:    "blocks until user commits",
+  run_cell:            "streams output",
+  list_cells:          "walks the notebook",
+  search_documents:    "retrieves context",
 };
 
 // Legend reading order = the order labels read around the page.
@@ -67,7 +71,7 @@ type Cluster = {
 };
 
 // Clusters pushed in from the canvas edge so captions for the outermost
-// highlighted chip (get_dataset_profile, edit_cell, run_notebook_cell) have
+// highlighted chip (get_dataset_profile, edit_cell, run_cell) have
 // room to land above the chip (between chip and the cluster eyebrow label)
 // without colliding with the next chip below.
 const CLUSTERS: Record<Exclude<Category, "plan" | "search">, Cluster> = {
@@ -123,8 +127,14 @@ export const MCPToolRegistry: React.FC<{
     });
   });
 
-  // Plan tools flank the hub horizontally: propose_plan on the left edge of
-  // the hub, request_approval on the right. Both at the hub's vertical
+  // DEAD BRANCH as of 2026-08-02. No tool carries category "plan": the real
+  // registry has none, and propose_plan / request_approval were never
+  // registered in mcpServer.ts. Approval is enforced in the graph runtime --
+  // preprocessingRuntime.ts halts while requiresApproval is set and the
+  // decision is not "approved" -- which is a stronger place for it than a
+  // callable tool. Kept rather than deleted so the layout maths stays
+  // reviewable if a plan category is ever added for real.
+  // Both at the hub's vertical
   // centerline.
   const planPlaced: Placed[] = byCategory.plan.map((t) => {
     const x = t.name === "propose_plan" ? HUB_X - 130 : HUB_X + 130;

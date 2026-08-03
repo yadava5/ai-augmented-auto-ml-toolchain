@@ -124,7 +124,7 @@ Each section says (a) what's on screen so you know what they're seeing, then (b)
 
 ## 13 · Tech stack  *(four-layer architecture diagram + telemetry strip)*
 
-**On screen:** a single vertical spine with four layers branching off — EXPERIENCE, ORCHESTRATION, INTELLIGENCE (pulsing accent blue), EXECUTION. Each layer lists the tech in it. Below: a telemetry strip with five numbers — 1,550 tests (flashing green), 97% coverage, 12,000 LOC typed, 62 packages, 21 schema migrations. The closer reads "We didn't automate the 80%. We made it auditable."
+**On screen:** a single vertical spine with four layers branching off — EXPERIENCE, ORCHESTRATION, INTELLIGENCE (pulsing accent blue), EXECUTION. Each layer lists the tech in it. Below: a telemetry strip with five numbers — 2,397 tests (flashing green), 67% backend line coverage, 12,000 LOC typed, 62 packages, 21 schema migrations. The closer reads "We didn't automate the 80%. We made it auditable."
 
 **Say:**
 "Quick architectural overview before I go deeper. The thing to focus on is layer three — INTELLIGENCE, the one pulsing blue. That's the only layer in the system that makes a probabilistic decision. Everything else — the React frontend, the Express backend, the Postgres database, the Docker sandbox — is deterministic. We isolated the part that can guess, and we surrounded it with code that can't."

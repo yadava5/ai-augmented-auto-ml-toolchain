@@ -250,7 +250,7 @@ Demo: the full application walkthrough — home → upload → explorer → prep
 
 ### 11. `tech-stack` — 15.0s budget · 14.7s rendered · Δ ≈ 0
 
-Slide: 4 ledger rows (Experience / Orchestration / Intelligence / Execution) + telemetry receipts (1,550 tests, 97% coverage). Bridges product demo into architecture deep-dive.
+Slide: 4 ledger rows (Experience / Orchestration / Intelligence / Execution) + telemetry receipts (2,397 tests, 67% backend line coverage). Bridges product demo into architecture deep-dive.
 
 ```
 {{HEADLINE}} The design is a **probabilistic core** running inside a **deterministic shell**.

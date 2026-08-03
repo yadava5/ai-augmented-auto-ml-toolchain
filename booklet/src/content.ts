@@ -101,7 +101,7 @@ export const WHY = {
     ],
     sidebar: [
       "GPT-5.4: tool-call fidelity",
-      "MCP registry: 20+ tools",
+      "MCP registry: 12 tools",
       "Docker: 2GB RAM · 1 CPU",
       "Jupyter Kernel Gateway: < 1s",
     ],
@@ -460,28 +460,29 @@ export const INSIDE = {
   mcpRegistry: {
     headline: "The MCP tool registry.",
     body:
-      "20+ tools expose the product to the agent through the Model Context Protocol. Five see the most use: get_dataset_profile (inspect), edit_cell (transform), run_notebook_cell (execute), propose_plan (plan), and request_approval (gate). Every call is logged against the run.",
+      "Twelve tools expose the product to the agent through the Model Context Protocol. Five see the most use: get_dataset_profile (inspect), edit_cell (transform), run_cell (execute), list_cells (navigate), and search_documents (retrieve).",
+    /* The REAL registry, read from backend/src/services/mcp/mcpServer.ts.
+       This list used to hold twenty names and seventeen of them were not
+       registered anywhere -- describe_column, sample_rows, search_docs,
+       search_notebook, append_cell, rename_column, drop_column, cast_dtype,
+       run_notebook_cell, kernel_status, propose_plan, request_approval,
+       validate_schema, validate_types, detect_leakage, profile_splits, and
+       a twentieth. The page rendered a registry of tools the agent cannot
+       call. Verified 2026-08-02: exactly 12 server.registerTool call sites,
+       one server, no second registry anywhere in backend/src or frontend/src. */
     tools: [
+      { name: "list_project_files",  category: "inspect"   },
       { name: "get_dataset_profile", category: "inspect"   },
-      { name: "describe_column",     category: "inspect"   },
-      { name: "sample_rows",         category: "inspect"   },
+      { name: "get_dataset_sample",  category: "inspect"   },
+      { name: "search_documents",    category: "search"    },
+      { name: "list_cells",          category: "inspect"   },
       { name: "read_cell",           category: "inspect"   },
-      { name: "search_docs",         category: "search"    },
-      { name: "search_notebook",     category: "search"    },
+      { name: "write_cell",          category: "transform" },
       { name: "edit_cell",           category: "transform" },
-      { name: "append_cell",         category: "transform" },
+      { name: "run_cell",            category: "execute"   },
       { name: "delete_cell",         category: "transform" },
-      { name: "rename_column",       category: "transform" },
-      { name: "drop_column",         category: "transform" },
-      { name: "cast_dtype",          category: "transform" },
-      { name: "run_notebook_cell",   category: "execute"   },
-      { name: "kernel_status",       category: "execute"   },
-      { name: "propose_plan",        category: "plan"      },
-      { name: "request_approval",    category: "plan"      },
-      { name: "validate_schema",     category: "validate"  },
-      { name: "validate_types",      category: "validate"  },
-      { name: "detect_leakage",      category: "validate"  },
-      { name: "profile_splits",      category: "validate"  },
+      { name: "reorder_cells",       category: "transform" },
+      { name: "insert_cell",         category: "transform" },
     ],
   },
   sandbox: {

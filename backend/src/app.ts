@@ -10,6 +10,7 @@ import { getDbPool, hasDatabaseConfiguration } from './db.js';
 import { appLogger } from './logging/logger.js';
 import { requireAuth } from './middleware/auth.js';
 import { deploymentRateLimit } from './middleware/deploymentRateLimit.js';
+import { llmRateLimit } from './middleware/llmRateLimit.js';
 import { requestContextMiddleware } from './middleware/requestContext.js';
 import { requestTimingMiddleware } from './middleware/requestTiming.js';
 import { requireDeploymentAuth, type PredictRequest } from './middleware/requireDeploymentAuth.js';
@@ -231,11 +232,15 @@ export function createApp() {
   registerProjectRoutes(router, projectRepository);
   router.use(createDatasetUploadRouter(datasetRepository));
   router.use(createDocumentRouter());
-  router.use(createQueryRouter());
+  // llmRateLimit guards every router below that can reach a paid provider.
+  // Mounted per-router rather than globally because the mounts here interleave
+  // LLM and non-LLM routers, and throttling project CRUD or uploads alongside
+  // them would be a regression, not a fix.
+  router.use(llmRateLimit, createQueryRouter());
   router.use(createPreprocessingRouter());
-  router.use(createFeatureEngineeringRouter());
-  router.use(createLlmRouter());
-  router.use(createWorkflowRouter());
+  router.use(llmRateLimit, createFeatureEngineeringRouter());
+  router.use(llmRateLimit, createLlmRouter());
+  router.use(llmRateLimit, createWorkflowRouter());
   router.use(createMcpRouter());
   router.use('/models', modelRouter);
   router.use('/experiments', createExperimentsRouter());
@@ -245,8 +250,8 @@ export function createApp() {
   router.use('/execute', executionRouter);
   router.use(notebookRouter);
   router.use(createSettingsRouter());
-  router.use(createPlanChatRouter());
-  router.use(createRealtimeSessionRouter());
+  router.use(llmRateLimit, createPlanChatRouter());
+  router.use(llmRateLimit, createRealtimeSessionRouter());
 
   app.use('/api', router);
 

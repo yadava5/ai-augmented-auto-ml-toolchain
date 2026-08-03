@@ -2,6 +2,7 @@ import type { Response } from 'express';
 
 import { appLogger } from '../../logging/logger.js';
 import {
+  commitNlGeneration,
   generateSqlFromNaturalLanguageV2,
   repairSqlFromExecutionErrorV2,
   type GeneratedSqlV2,
@@ -243,13 +244,27 @@ export async function resolveNlQueryExecution(params: {
   onProgress?: ProgressListener;
   onModelWork?: ModelWorkListener;
 }): Promise<NlResponsePayload> {
+  // Captured from the pipeline so the generation cache can be written only
+  // after the SQL has been shown to execute. Committing at generation time
+  // would cache statements that turn out to need repair, and then re-pay for
+  // that repair on every future hit.
+  let generationCacheKey: string | null = null;
+
   const generated = await generateSqlFromNaturalLanguageV2({
     projectId: params.projectId,
     nlQuery: params.query,
     defaultTable: params.tableName,
     onProgress: params.onProgress,
-    onModelWork: params.onModelWork
+    onModelWork: params.onModelWork,
+    onCacheKey: ({ key }) => {
+      generationCacheKey = key;
+    }
   });
+
+  /** Commit only on a statement that actually ran. */
+  const commitIfCacheable = (payload: GeneratedSqlV2) => {
+    if (generationCacheKey) commitNlGeneration(generationCacheKey, payload);
+  };
 
   emitNlProgress(params.onProgress, {
     phaseId: 'initial_execution',
@@ -269,6 +284,8 @@ export async function resolveNlQueryExecution(params: {
         ? 'Using cached query result for generated SQL.'
         : 'Generated SQL executed successfully.'
     });
+
+    commitIfCacheable(generated);
 
     return buildNlResponsePayload({
       generated,
@@ -318,6 +335,10 @@ export async function resolveNlQueryExecution(params: {
           status: 'completed',
           summary: 'Repaired SQL executed successfully.'
         });
+
+        // Cache the repaired statement, not the one that failed, so the next
+        // identical question skips both generation and repair.
+        commitIfCacheable(repaired);
 
         return buildNlResponsePayload({
           generated: repaired,
