@@ -74,6 +74,12 @@ Senior Design Project Proposal.pdf
 # Local agent/debug logs
 .cursor/
 .playwright-cli/
+# .playwright-mcp/ captures raw browser console output, which includes whatever
+# the app logs during a session -- and this app logs the access token. Three
+# signed JWTs reached this repository's history that way (commit e7eb31f, Mar
+# 2026, since removed from the tree but still reachable). Its sibling above was
+# ignored; this one was not, which is the whole difference.
+.playwright-mcp/
 .superpowers/
 .vercel/
 

@@ -1,0 +1,54 @@
+# gitleaks configuration
+#
+# A secret scanner is only useful if its output is believed. Scanned 2026-08-02
+# over full history: 16 findings, 0 real leaks. Every one is allowlisted below
+# individually, with the reason recorded, so a future finding stands out instead
+# of joining a pile that gets skimmed.
+#
+# The two exclusions that would have been easy and would each have broken the
+# scanner are deliberately NOT made: no path exclusion for `.tmp/` or
+# `.playwright-mcp/` (a real credential landing there is still real), and no
+# rule is disabled.
+
+[extend]
+useDefault = true
+
+[allowlist]
+  description = "Findings triaged 2026-08-02; see docs and the commits named below"
+
+  regexes = [
+    # frontend/src/components/deployment/tabs/ApiTab.tsx
+    #
+    # The literal string in a curl snippet the UI shows users, telling them where
+    # their own key goes. It trips `curl-auth-header` because it sits in exactly
+    # the position a key would. Allowlisted by value rather than by file so the
+    # rule keeps working on that file if a real key is ever pasted into it.
+    '''YOUR_API_KEY''',
+  ]
+
+  commits = [
+    # .playwright-mcp/console-*.log -- three signed session JWTs, captured
+    # because that directory records raw browser console output and this app
+    # logs its access token.
+    #
+    # Assessed rather than waved through: 15-minute TTL, expired 2026-03-30,
+    # all role=user, and backend/src/services/authService.ts:91 verifies with
+    # jwt.verify(), which checks exp by default and throws TokenExpiredError.
+    # None can be replayed. The files are gone from the tree; the commit is
+    # kept out of the scanner's way here rather than by rewriting published
+    # history, which is an owner decision.
+    #
+    # The recurrence is closed at the source: .playwright-mcp/ is now
+    # gitignored. Its sibling .playwright-cli/ always was, which was the entire
+    # difference.
+    "e7eb31f2c833836245cec1af07816453d8d2f381",
+
+    # .tmp/faculty-drafts/*.eml -- flagged as `square-access-token` on a run of
+    # base64 inside a PDF attachment that happens to begin "EAAAA". The
+    # surrounding bytes decode to "endstream". It is PDF structure, not a token.
+    #
+    # This commit carries a separate and unrelated privacy concern that is NOT a
+    # scanner finding and is not resolved by this file. It has been raised with
+    # the repository owner directly.
+    "67f9de1d2e895cbb24341601c767309cdff89204",
+  ]

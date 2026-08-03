@@ -12,6 +12,7 @@ import {
 import { validateReadOnlySql } from '../sqlValidator.js';
 
 import { mergeExplanation } from './confidence.js';
+import { deriveNlGenerationCacheKey, readNlGeneration } from './generationCache.js';
 import {
   normalizePass1Output,
   normalizePass2FallbackOutput,
@@ -397,7 +398,8 @@ export async function runGeneratePipeline(
     nlQuery,
     defaultTable,
     onProgress,
-    onModelWork
+    onModelWork,
+    onCacheKey
   }: GenerateSqlV2Options,
   deps: {
     datasetRepository: import('../../repositories/datasetRepository.js').DatasetRepository;
@@ -419,6 +421,47 @@ export async function runGeneratePipeline(
   if (tables.length === 0) {
     throw new Error('No dataset schema is available for this project. Upload data before using English mode.');
   }
+
+  // Everything the prompt is built from is known now, and nothing paid has
+  // happened yet: phaseSchemaContext only reads the dataset repository. This is
+  // the one point where a hit can skip BOTH model calls below.
+  const cacheKey = deriveNlGenerationCacheKey({
+    projectId,
+    query,
+    defaultTableName,
+    tables,
+    joinCandidates,
+    model,
+    reasoningEffort: defaultReasoningEffort
+  });
+
+  const cached = readNlGeneration(cacheKey);
+  if (cached) {
+    onCacheKey?.({ key: cacheKey, hit: true });
+    // Report the phases as completed so progress consumers see a terminated
+    // run rather than one that stalls after schema_context. No model_work
+    // events are emitted, because no model did any work.
+    emitNlProgress(onProgress, {
+      phaseId: 'planning',
+      status: 'completed',
+      summary: 'Reused the plan from an identical earlier question.'
+    });
+    emitNlProgress(onProgress, {
+      phaseId: 'sql_generation',
+      status: 'completed',
+      summary: 'Reused SQL generated for an identical earlier question.'
+    });
+    // Accurate rather than cosmetic: a cached payload is by construction the
+    // output of phaseValidation, so it has already been validated.
+    emitNlProgress(onProgress, {
+      phaseId: 'validation',
+      status: 'completed',
+      summary: 'Reused a previously validated statement.'
+    });
+    return cached;
+  }
+
+  onCacheKey?.({ key: cacheKey, hit: false });
 
   const client = deps.getClient(model);
 
