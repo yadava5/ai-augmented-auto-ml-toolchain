@@ -47,7 +47,7 @@ It is a TypeScript monorepo: React 19 frontend, Express 5 API, PostgreSQL 16 wit
 - **The tool list is a control surface, not a menu.** `tools/index.ts` builds a different allowed-tool array per lifecycle stage. `LLM_FEATURE_PROPOSAL_TOOLS` deliberately excludes `materialize_feature_code`, so on the first turn the model *cannot* skip proposal review by jumping straight to code generation. Restricting the schema is cheaper and more reliable than prompting the model not to.
 - **A stage taxonomy that admits some steps are not the model's call.** `StageConfig.mode` in `phaseConfig.ts` is `'text' | 'action' | 'deterministic' | 'llm_delegated'`. Preprocessing marks `write_code`, `record_execution`, `validate` and `commit` as **deterministic** — those run fixed code paths regardless of what the model would prefer.
 - **Bounded self-repair with a real number.** A failed or invalid step routes back to `generate_code` with the error attached, at most **2 times** (`maxAutoRepairAttempts`, `preprocessingRuntime.ts`). Four separate loop caps guard the graph — 48 iterations, 10 calls of any one tool, 5 identical calls, 24 stage hops without a tool call (`graphState.ts`).
-- **Execution constraints written as `docker run` flags, not as prose.** Non-root user, read-only root filesystem, 2 GB memory cap, 1.0 CPU, five `nosuid` tmpfs mounts, datasets bind-mounted `:ro`, and an `--internal` Docker network. Every argument is assembled in one 40-line function you can read end to end: `buildDockerRunArgs` in `container/dockerBuilder.ts`. See [Sandboxing](#sandboxing) for what is *not* enforced.
+- **Execution constraints written as `docker run` flags, not as prose.** Non-root user, read-only root filesystem, 2 GB memory cap, 1.0 CPU, five `nosuid` tmpfs mounts, datasets bind-mounted `:ro`, and an `--internal` Docker network. Every argument is assembled in one function you can read end to end: `buildDockerRunArgs` in `container/dockerBuilder.ts`. See [Sandboxing](#sandboxing) for what is *not* enforced.
 - **A regression fixed by removing a tool.** `get_dataset_profile` is excluded from the feature-engineering tool set with a comment explaining why: its output is already injected into the request, so leaving it available made the model re-profile the dataset in a loop with no matching history entry to stop it.
 
 ---
@@ -435,6 +435,7 @@ Note that `/api/auth` and `/api/deployments` are only mounted when `DATABASE_URL
 | `npm run lint` | ESLint across backend and frontend |
 | `npm run db:migrate` | Apply pending migrations, idempotent |
 | `npm run audit` | Dependency audit across root, backend, frontend, testing |
+| `npm run readme:check` | Verify every number on this page against the code (`readme:write` repairs them, `readme:record` re-measures the suites) |
 | `npm run benchmark` | Playwright end-to-end, headless |
 | `npm run eval` | NL→SQL and RAG evaluation against a running API |
 | `npm run benchmark:api` | autocannon API load run |
@@ -511,16 +512,20 @@ grep -rcE  "^ +name: '[a-z_]+'," backend/src/services/llm/tools/*.ts            
 # 12 of them registered over MCP
 grep -c "server.registerTool(" backend/src/services/mcp/mcpServer.ts             # 12
 
-# The seven UI phases, versus the four LangGraph phases
-sed -n '8,15p'  frontend/src/types/phase.ts        # 7
-sed -n '5,10p'  frontend/src/types/workflow.ts     # 4
+# The seven UI phases, versus the four LangGraph phases. Anchored on the
+# declarations rather than on line numbers, for the reason above.
+sed -n '/^export type Phase =/,/;$/p'              frontend/src/types/phase.ts     # 7
+sed -n '/^export const WorkflowPhaseSchema/,/^\]);$/p' frontend/src/types/workflow.ts  # 4
 
 # Loop caps and the auto-repair bound
 grep -n "^export const MAX_" backend/src/services/workflows/graphState.ts
 grep -n "maxAutoRepairAttempts: 2" backend/src/services/llm/langgraph/preprocessingRuntime.ts
 
-# Every sandbox flag, in one 40-line function
-sed -n '21,60p' backend/src/services/container/dockerBuilder.ts
+# Every sandbox flag, in one function. Matched by name rather than by line
+# number, because a line range is a claim that goes stale the next time anyone
+# adds a comment above it — which is exactly what happened to the range that
+# used to be here.
+sed -n '/^export function buildDockerRunArgs/,/^}$/p' backend/src/services/container/dockerBuilder.ts
 
 # What the sandbox does NOT set — each of these prints nothing.
 # Scoped to source, because this README names the flags it does not use.
@@ -538,6 +543,8 @@ git ls-files 'frontend/**/*.test.ts' 'frontend/**/*.test.tsx' | wc -l           
 git ls-files 'testing/tests/*.spec.ts' | wc -l                                   # 11
 python3 -c "import json;print(len(json.load(open('testing/fixtures/rag_eval.json'))))"   # 15
 ```
+
+Or run them all at once: `npm run readme:check` recomputes every number above from the source that defines it — including the copies that live outside this file, in `booklet/src/content.ts` and `video/docs/CAPTURE.md` — and fails the build on any disagreement. It also fails when a sentence has been reworded so that the checker can no longer find the claim it was checking, because a check that quietly stops checking is worse than no check. It runs as its own dependency-free job in `ci.yml`.
 
 CI status is the badge at the top, from `.github/workflows/ci.yml`. Security workflows are `codeql.yml`, `gitleaks.yml` and `scorecard.yml` in the same directory. The repository's origin and export provenance are recorded in `docs/github-provenance.md`.
 
