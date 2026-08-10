@@ -1,0 +1,44 @@
+{
+  "$comment": "Recorded facts for README.md — figures that require executing something. Regenerate with `node scripts/readme-facts.mjs --record`. NOTE: the README deliberately states no pass counts (see its Testing section), so nothing in here is currently asserted by --check. It exists so the numbers are available WITH provenance if the README ever quotes them, and so a run that was not green leaves a different file behind than one that was.",
+  "recordedAt": "2026-08-10",
+  "machine": "darwin-arm64, node v24.9.0",
+  "facts": {
+    "testFilesBackend": {
+      "value": 127,
+      "command": "npm --prefix backend run test"
+    },
+    "testsBackend": {
+      "value": 1412,
+      "command": "npm --prefix backend run test"
+    },
+    "testFilesFrontend": {
+      "value": 122,
+      "command": "npm --prefix frontend run test"
+    },
+    "testsFrontend": {
+      "value": 985,
+      "command": "npm --prefix frontend run test"
+    },
+    "testsTotal": {
+      "value": 2397,
+      "command": "the sum of the two runs above"
+    },
+    "testsSkipped": {
+      "value": 0,
+      "command": "the \"N skipped\" segment of both Vitest summary lines"
+    }
+  },
+  "suiteOutcome": {
+    "backend": {
+      "passed": 1412,
+      "failed": 0,
+      "skipped": 0
+    },
+    "frontend": {
+      "passed": 985,
+      "failed": 0,
+      "skipped": 0
+    },
+    "allGreen": true
+  }
+}
