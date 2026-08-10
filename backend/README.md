@@ -46,7 +46,11 @@ DOC_CHUNK_OVERLAP=50
 ANSWER_CACHE_TTL_MS=120000
 DOCKER_ENABLED=true
 DOCKER_IMAGE=automl-python-runtime
-EXECUTION_NETWORK=none
+# automl-sandbox (the default) is created with --internal: no outbound
+# internet, no SSRF to the host. Use `bridge` only if containers must reach
+# PyPI for install_package. This line used to read `none`, which disagreed
+# with .env.example and with the code's actual default.
+EXECUTION_NETWORK=automl-sandbox
 EXECUTION_AUTO_BUILD_IMAGE=true
 EXECUTION_TIMEOUT_MS=30000
 EXECUTION_MAX_MEMORY_MB=2048
