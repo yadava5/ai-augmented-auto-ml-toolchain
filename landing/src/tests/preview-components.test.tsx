@@ -228,7 +228,11 @@ describe('preview source guardrails', () => {
     const vercelConfig = readFileSync(path.resolve(landingRoot, '../../vercel.json'), 'utf8');
     expect(vercelConfig).toContain('"outputDirectory": "landing/dist"');
     expect(vercelConfig).toContain('"buildCommand": "npm run build:landing"');
-    expect(vercelConfig).toContain('"installCommand": "npm ci --prefix frontend && npm ci --prefix landing"');
+    // npm install, not npm ci: the lockfiles are not in sync with their
+    // manifests (npm ci dies on `Missing: source-map@0.6.1 from lock file`),
+    // which is what killed the 2026-07-24 production deploy. Asserted here so
+    // the command cannot quietly revert to the form that does not build.
+    expect(vercelConfig).toContain('"installCommand": "npm install --prefix frontend && npm install --prefix landing"');
     expect(vercelConfig).toContain('X-Frame-Options');
     expect(vercelConfig).toContain('SAMEORIGIN');
   });
