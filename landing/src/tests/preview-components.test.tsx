@@ -187,7 +187,7 @@ describe('preview source guardrails', () => {
     expect(loginPage).not.toContain('http-equiv="refresh"');
   });
 
-  it('ships a landing /repo page that redirects to the shared GitLab repository URL', () => {
+  it('ships a landing /repo page that redirects to the public GitHub repository URL', () => {
     expect(existsSync(path.resolve(landingRoot, 'pages/repo.astro'))).toBe(true);
 
     const publicLinksSource = readFileSync(
@@ -197,30 +197,18 @@ describe('preview source guardrails', () => {
     const repoPage = readFileSync(path.resolve(landingRoot, 'pages/repo.astro'), 'utf8');
     const footerSource = readFileSync(path.resolve(landingRoot, 'components/Footer.astro'), 'utf8');
 
-    expect(publicLinksSource).toContain('export const GITLAB_REPO_URL');
-    expect(repoPage).toContain('GITLAB_REPO_URL');
+    expect(publicLinksSource).toContain('export const REPO_URL');
+    expect(repoPage).toContain('REPO_URL');
     expect(repoPage).toContain('window.location.replace(repoUrl)');
     expect(repoPage).toContain('http-equiv="refresh"');
-    expect(footerSource).toContain("import { GITLAB_REPO_URL } from '@/lib/publicLinks';");
-    expect(footerSource).toContain("href: GITLAB_REPO_URL");
-  });
+    expect(footerSource).toContain("import { REPO_URL } from '@/lib/publicLinks';");
+    expect(footerSource).toContain('href: REPO_URL');
 
-  it('ships a landing /repo page that redirects to the shared GitLab repository URL', () => {
-    expect(existsSync(path.resolve(landingRoot, 'pages/repo.astro'))).toBe(true);
-
-    const publicLinksSource = readFileSync(
-      path.resolve(landingRoot, 'lib/publicLinks.ts'),
-      'utf8',
-    );
-    const repoPage = readFileSync(path.resolve(landingRoot, 'pages/repo.astro'), 'utf8');
-    const footerSource = readFileSync(path.resolve(landingRoot, 'components/Footer.astro'), 'utf8');
-
-    expect(publicLinksSource).toContain('export const GITLAB_REPO_URL');
-    expect(repoPage).toContain('GITLAB_REPO_URL');
-    expect(repoPage).toContain('window.location.replace(repoUrl)');
-    expect(repoPage).toContain('http-equiv="refresh"');
-    expect(footerSource).toContain("import { GITLAB_REPO_URL } from '@/lib/publicLinks';");
-    expect(footerSource).toContain("href: GITLAB_REPO_URL");
+    // The point of the whole redirect: the destination must be reachable
+    // without Miami SSO. Assert the host, not just the constant name, so
+    // repointing it back at the GitLab instance fails here.
+    expect(publicLinksSource).toContain('https://github.com/yadava5/ai-augmented-auto-ml-toolchain');
+    expect(publicLinksSource).not.toContain('gitlab.csi.miamioh.edu');
   });
 
   it('checks in Vercel project config for the landing workspace', () => {
