@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-build-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+            testing/package-lock.json
+            landing/package-lock.json
+            video/package-lock.json
+            poster/package-lock.json
+            booklet/package-lock.json
+
+      # npm install, NOT npm ci. The lockfiles are out of sync with their
+      # manifests -- npm ci exits with `Missing: source-map@0.6.1 from lock
+      # file`, which is what failed the 2026-07-24 production deploy and is
+      # why vercel.json installs the same way. Regenerating the lockfiles is
+      # the real repair; until that happens npm ci cannot run anywhere.
+      - name: Install backend dependencies
+        run: npm --prefix backend install --no-audit --no-fund
+
+      - name: Install frontend dependencies
+        run: npm --prefix frontend install --no-audit --no-fund
+
+      - name: Lint core app
+        run: npm run lint
+
+      - name: Test core app
+        run: npm run test
+
+      - name: Build core app
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+        run: npm run build
