@@ -6,10 +6,3 @@
  * there — so nothing is lost by pointing the public at it.
  */
 export const REPO_URL = 'https://github.com/yadava5/ai-augmented-auto-ml-toolchain';
-
-/**
- * @deprecated Retained for one commit so each consumer can migrate on its own
- * and every intermediate commit still builds. Removed once Footer.astro,
- * repo.astro and the preview tests are on REPO_URL.
- */
-export const GITLAB_REPO_URL = REPO_URL;
