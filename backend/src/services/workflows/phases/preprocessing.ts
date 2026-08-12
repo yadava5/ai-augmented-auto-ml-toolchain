@@ -13,6 +13,7 @@ import { asRecord, asString } from '../../../utils/typeCoercion.js';
 import { createPreprocessingLangGraphRuntime } from '../../llm/langgraph/preprocessingRuntime.js';
 import type { LlmClient } from '../../llm/llmClient.js';
 import { createPreprocessingCellInspector, createPreprocessingCellMetadataStore } from '../../llm/preprocessing/cellBinding.js';
+import { classifyRunCellOutcome, type RunCellOutcome } from '../../llm/preprocessing/runCellOutcome.js';
 import {
   createPreprocessingLangGraphSynchronizer,
   PREPROCESSING_TOOL_NAMES,
@@ -21,7 +22,10 @@ import {
 import { fail } from '../../llm/preprocessingTools/helpers.js';
 import { TOOL_HANDLERS } from '../../llm/preprocessingTools/index.js';
 import * as notebookService from '../../notebook/notebookService.js';
-import { buildPreprocessingCellContent } from '../../notebook/preprocessingExecutionContext.js';
+import {
+  buildPreprocessingCellContent,
+  buildPreprocessingSegmentedCellContent
+} from '../../notebook/preprocessingExecutionContext.js';
 import type { WorkflowGraphState } from '../graphState.js';
 import type {
   PhaseConfig,
@@ -62,6 +66,10 @@ interface NotebookExecutionSnapshot {
   stdout: string;
   stderr: string;
   cellId?: string;
+}
+
+interface ResolveNotebookExecutionOutcomeOptions {
+  fastFailOnIndeterminate?: boolean;
 }
 
 const PREPROCESSING_CELL_MARKER_RE = /^\s*#\s*(?:cell\b.*|%%.*)$/i;
@@ -107,9 +115,11 @@ export function buildPreprocessingCodeGenerationSystemPrompt(): string {
   return `You are a Python data preprocessing expert. Author executable Python code for the requested transformation.
 
 RULES:
-- Work on a DataFrame variable named \`df\` (already loaded in scope).
+- Work on a DataFrame variable named \`df\`.
+- The visible notebook scaffold already imports \`pandas as pd\` and \`numpy as np\`, loads \`df\`, and saves \`df\` after execution.
 - Modify \`df\` in-place. Do NOT re-read or re-create the DataFrame.
-- Use pandas/numpy idioms. Keep the code minimal and focused.
+- Use \`pd\` and \`np\` idioms. Keep the code minimal and focused.
+- Do NOT include imports, dataset load calls, or dataset save calls.
 - If the step has more than one logical notebook phase, you MUST separate it with explicit comment markers like \`# Cell 1\`, \`# Cell 2\`.
 - Treat audit/profile, transform, and post-transform validation as separate notebook phases whenever they are distinct.
 - Do NOT collapse audit + transform + validation into one monolithic cell.
@@ -165,10 +175,38 @@ function aggregateRunOutputs(runCells: RunCellResultContext[]): { stdout: string
 }
 
 function didRunCellsEncounterError(runCells: RunCellResultContext[]): boolean {
-  return runCells.some((entry) => {
-    const normalizedStatus = entry.status?.toLowerCase();
-    return normalizedStatus === 'error' || normalizedStatus === 'failed' || Boolean(entry.error);
-  });
+  return runCells.some((entry) => classifyRunCellOutcome(entry) === 'failure');
+}
+
+function summarizeRunCellOutcome(
+  outcome: RunCellOutcome,
+  latestRunCell: RunCellResultContext | null,
+  stderr: string
+): string {
+  if (stderr.trim()) {
+    return stderr;
+  }
+
+  if (latestRunCell?.error?.trim()) {
+    return latestRunCell.error.trim();
+  }
+
+  if (outcome === 'failure') {
+    const status = latestRunCell?.status?.trim();
+    return status
+      ? `Notebook execution reported terminal failure status "${status}".`
+      : 'Notebook execution reported a terminal failure.';
+  }
+
+  if (outcome === 'pending') {
+    return 'Notebook execution is still pending and did not reach a terminal success state.';
+  }
+
+  if (outcome === 'indeterminate') {
+    return 'Notebook execution did not produce terminal success markers for all bound cells.';
+  }
+
+  return '';
 }
 
 function summarizeNotebookCellOutputs(outputs: Array<{ type: string; content: string }>): { stdout: string; stderr: string } {
@@ -208,7 +246,7 @@ async function resolveNotebookExecutionSnapshot(cellIds: string[]): Promise<Note
         statuses.push(cell.executionStatus);
       } else if (hasErrorOutput) {
         statuses.push('error');
-      } else if (hasObservedExecution) {
+      } else if (hasObservedExecution && cell.isDirty === false) {
         statuses.push('success');
       }
       const { stdout, stderr } = summarizeNotebookCellOutputs(
@@ -234,16 +272,28 @@ async function resolveNotebookExecutionSnapshot(cellIds: string[]): Promise<Note
   const hasError = statuses.includes('error');
   const allSucceeded = statuses.length >= cellIds.length && statuses.every((status) => status === 'success');
   const hasPending = statuses.some((status) => status === 'running' || status === 'idle');
+  const hasIndeterminate = statuses.length < cellIds.length && !hasError && !hasPending && !allSucceeded;
 
   return {
     cellId: latestCellId,
-    status: hasError ? 'error' : allSucceeded ? 'success' : hasPending ? 'running' : undefined,
+    status: hasError
+      ? 'error'
+      : allSucceeded
+        ? 'success'
+        : hasPending
+          ? 'running'
+          : hasIndeterminate
+            ? 'indeterminate'
+            : undefined,
     stdout: stdoutParts.join('\n\n'),
     stderr: stderrParts.join('\n\n')
   };
 }
 
-async function resolveNotebookExecutionOutcome(cellIds: string[]): Promise<RunCellResultContext | null> {
+async function resolveNotebookExecutionOutcome(
+  cellIds: string[],
+  options: ResolveNotebookExecutionOutcomeOptions = {}
+): Promise<RunCellResultContext | null> {
   const attempts = 20;
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
@@ -255,7 +305,18 @@ async function resolveNotebookExecutionOutcome(cellIds: string[]): Promise<RunCe
       continue;
     }
 
-    if (snapshot.status === 'success' || snapshot.status === 'error') {
+    const outcome = classifyRunCellOutcome(snapshot);
+    if (outcome === 'success' || outcome === 'failure') {
+      return {
+        tool: 'run_cell',
+        cellId: snapshot.cellId,
+        status: snapshot.status,
+        stdout: snapshot.stdout,
+        stderr: snapshot.stderr
+      };
+    }
+
+    if (outcome === 'indeterminate' && options.fastFailOnIndeterminate) {
       return {
         tool: 'run_cell',
         cellId: snapshot.cellId,
@@ -380,23 +441,15 @@ export function buildSegmentedPreprocessingCellContent(params: {
     });
   }
 
-  if (params.segmentIndex === 0) {
-    return [
-      `df = load_preprocessing_dataset(${JSON.stringify(dataset.filename)}, ${JSON.stringify(dataset.datasetId)}, ${JSON.stringify(dataset.fileType)}, "df")`,
-      '',
-      trimmedSegment
-    ].join('\n');
-  }
-
-  if (params.segmentIndex === params.segmentCount - 1) {
-    return [
-      trimmedSegment,
-      '',
-      `save_preprocessing_dataset(${JSON.stringify(dataset.filename)}, ${JSON.stringify(dataset.datasetId)}, ${JSON.stringify(dataset.fileType)}, "df")`
-    ].join('\n');
-  }
-
-  return trimmedSegment;
+  return buildPreprocessingSegmentedCellContent({
+    filename: dataset.filename,
+    datasetId: dataset.datasetId,
+    fileType: dataset.fileType,
+    dataframeName: 'df',
+    segment: trimmedSegment,
+    segmentIndex: params.segmentIndex,
+    segmentCount: params.segmentCount
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -440,7 +493,12 @@ async function buildWriteCodeAction(state: WorkflowGraphState): Promise<import('
   const currentTurnResults = state.toolResultHistory.slice(state.turnStartToolCallCount);
   const writtenCellIds = extractWrittenCellIds(currentTurnResults);
   const runCells = extractRunCellResults(currentTurnResults);
+  const hasBlockedExecutionOutcome = runCells.some((entry) => classifyRunCellOutcome(entry) !== 'success');
   const reusableStepCellIds = await resolveReusableStepCellIds(step.cellIds);
+
+  if (hasBlockedExecutionOutcome) {
+    return [];
+  }
 
   if (writtenCellIds.length > runCells.length) {
     const nextCellId = writtenCellIds[runCells.length];
@@ -520,11 +578,15 @@ async function buildRecordExecutionAction(state: WorkflowGraphState): Promise<im
   const writtenCellIds = extractWrittenCellIds(currentTurnResults);
   let latestRunCell = runCells.at(-1) ?? null;
   let { stdout, stderr } = aggregateRunOutputs(runCells);
+  let latestOutcome = latestRunCell ? classifyRunCellOutcome(latestRunCell) : null;
 
-  if (writtenCellIds.length > 0 && (latestRunCell == null || latestRunCell.status !== 'success')) {
-    const notebookOutcome = await resolveNotebookExecutionOutcome(writtenCellIds);
+  if (writtenCellIds.length > 0 && (latestRunCell == null || latestOutcome === 'pending' || latestOutcome === 'indeterminate')) {
+    const notebookOutcome = await resolveNotebookExecutionOutcome(writtenCellIds, {
+      fastFailOnIndeterminate: latestRunCell != null && latestOutcome === 'indeterminate'
+    });
     if (notebookOutcome) {
       latestRunCell = notebookOutcome;
+      latestOutcome = classifyRunCellOutcome(notebookOutcome);
       if (!stdout) {
         stdout = notebookOutcome.stdout ?? '';
       }
@@ -534,15 +596,15 @@ async function buildRecordExecutionAction(state: WorkflowGraphState): Promise<im
     }
   }
 
-  const latestStatus = latestRunCell?.status?.toLowerCase();
-  const latestSucceeded = latestStatus === 'success'
-    || (
-      latestRunCell != null
-      && latestStatus == null
-      && !latestRunCell.error
-      && !stderr.trim()
-    );
-  const succeeded = latestSucceeded && !didRunCellsEncounterError(runCells);
+  const failureDetected = didRunCellsEncounterError(runCells);
+  const succeeded = latestOutcome === 'success' && !failureDetected;
+  const normalizedStderr = succeeded
+    ? stderr
+    : summarizeRunCellOutcome(
+        failureDetected ? 'failure' : (latestOutcome ?? 'indeterminate'),
+        latestRunCell,
+        stderr
+      );
 
   const parsed = ToolCallSchema.safeParse({
     id: `wf-call-${randomUUID()}`,
@@ -554,7 +616,7 @@ async function buildRecordExecutionAction(state: WorkflowGraphState): Promise<im
       cellIds: writtenCellIds.length > 0 ? writtenCellIds : undefined,
       succeeded,
       stdout,
-      stderr
+      stderr: normalizedStderr
     },
     rationale: 'Record the latest preprocessing notebook execution outcome.'
   });
@@ -698,6 +760,14 @@ async function executePreprocessingToolCall(
     const existing = await runRepository.getById(sanitizedRunId);
     if (!existing) {
       return fail(sanitizedRunId, 'RUN_NOT_FOUND', `Run ${sanitizedRunId} not found.`);
+    }
+    if (existing.projectId !== projectId) {
+      return fail(
+        sanitizedRunId,
+        'RUN_PROJECT_MISMATCH',
+        `Run ${sanitizedRunId} belongs to project ${existing.projectId}, not ${projectId}.`,
+        { projectId, runProjectId: existing.projectId }
+      );
     }
     run = existing;
   } else {

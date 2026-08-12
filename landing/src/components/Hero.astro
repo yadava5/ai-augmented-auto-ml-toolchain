@@ -1,17 +1,14 @@
 ---
 // Hero — intentionally short so the app preview dominates the fold.
 // Entrance sequence: pill fade → heading deblur → subhead word-fade → CTA rise.
-import { getAppLoginUrl } from '@/lib/appLinks';
-
-const appLoginUrl = getAppLoginUrl();
 ---
 
 <section class="hero" id="top">
   <a href="#product" class="hero-pulse-link">
     <span class="hero-pulse-dot" aria-hidden="true"></span>
     <span class="hero-pulse-text">
-      <span class="hero-pulse-text-full">Now supporting GPT 5.4 class reasoning</span>
-      <span class="hero-pulse-text-short">Now with GPT 5.4 reasoning</span>
+      <span class="hero-pulse-text-full">Powered by frontier LLMs</span>
+      <span class="hero-pulse-text-short">Frontier LLMs</span>
     </span>
     <svg class="hero-pulse-arrow" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <path d="M3.5 8H12.5M12.5 8L8.5 4M12.5 8L8.5 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -25,16 +22,15 @@ const appLoginUrl = getAppLoginUrl();
 
   <p class="hero-subhead" id="hero-subhead">
     Upload your data. Describe your goal. Walk away. Come back to deployed models,
-    ranked experiments, and a notebook that explains every decision.
+    ranked experiments, and a notebook that documents each step.
   </p>
 
   <div class="hero-cta-row">
-    <a href={appLoginUrl} class="hero-cta">
-      Get Started
-      <svg class="hero-cta-icon" width="18" height="18" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-        <path d="M3.5 8H12.5M12.5 8L8.5 4M12.5 8L8.5 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-    </a>
+    <span class="hero-cta hero-cta-soon" aria-disabled="true">Coming soon</span>
+    <p class="hero-cta-note">
+      In active development — seeking collaborators &amp; sponsors.
+      <a class="hero-cta-contact" href="mailto:aesh.03.23@gmail.com">Get in touch →</a>
+    </p>
   </div>
 </section>
 
@@ -294,9 +290,33 @@ const appLoginUrl = getAppLoginUrl();
   .hero-cta-row {
     margin-top: 40px;
     display: flex;
-    justify-content: center;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
     opacity: 0;
     animation: hero-pill-enter 500ms var(--ease-out-quart) 1600ms forwards;
+  }
+
+  /* Auth is "Coming soon", so this line gives visitors a real way to reach
+     out to contribute or sponsor the project while it's in development. */
+  .hero-cta-note {
+    margin: 0;
+    font-family: 'Geist Mono Variable', ui-monospace, monospace;
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: var(--text-dim);
+  }
+  .hero-cta-contact {
+    color: var(--text-muted);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    white-space: nowrap;
+    transition: color var(--dur-fast) var(--ease-linear-default),
+                border-color var(--dur-fast) var(--ease-linear-default);
+  }
+  .hero-cta-contact:hover {
+    color: var(--text);
+    border-bottom-color: hsl(var(--border-accent, var(--border)));
   }
   .hero-cta {
     font-family: 'Inter Variable', sans-serif;
@@ -328,6 +348,14 @@ const appLoginUrl = getAppLoginUrl();
   }
   .hero-cta:hover .hero-cta-icon {
     transform: translateX(2px);
+  }
+
+  /* Auth is not yet available on this standalone marketing site, so the
+     primary CTA renders as a non-interactive "Coming soon" state. */
+  .hero-cta-soon {
+    cursor: default;
+    opacity: 0.62;
+    pointer-events: none;
   }
 
   /* ── Reduced motion ── */

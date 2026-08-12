@@ -21,7 +21,7 @@ describe('full-page marketing copy', () => {
     const phrases = [
       'The fastest way to build production ML models,',
       'agentically.',
-      'Now supporting GPT 5.4 class reasoning',
+      'Powered by frontier LLMs',
       'Upload your data. Describe your goal.',
       'HOW IT WORKS',
       'From raw data to a deployed model',

@@ -12,6 +12,12 @@
   <img src="https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="postgresql">
 </p>
 
+<p align="center">
+  <a href="https://agentic-automl-platform.vercel.app"><strong>Live site</strong></a>
+  &nbsp;·&nbsp;
+  <a href="https://agentic-automl-platform.vercel.app/system-card"><strong>System Card</strong></a>
+</p>
+
 ---
 
 **Agentic AutoML Platform** turns datasets and domain documents into production ML models through LLM-orchestrated pipelines. An agentic core powered by LangGraph and MCP tools handles everything from data exploration to deployment, with human-in-the-loop approval gates at every step.
@@ -74,7 +80,7 @@ Deploy trained models through a dedicated deployment phase with readiness checks
 
 ## Under the Hood
 
-**LangGraph Orchestration.** A state-machine engine coordinates multi-step ML pipelines through MCP tool calls, with phase-aware routing that selects the right tools for each workflow stage.
+**LangGraph Orchestration.** A state-machine engine coordinates multi-step ML pipelines through a registry of 40+ MCP tools — spanning data profiling, preprocessing, feature engineering, training, and experiments — with phase-aware routing that exposes the right tools for each workflow stage.
 
 **RAG with Hybrid Search.** Ingest domain documents to ground LLM responses in your data. Combines embedding similarity with keyword search for cited, context-aware answers.
 
@@ -147,12 +153,25 @@ docs/                 Branding assets, API contracts, design system
 | `npm run vercel:landing:build` | Build the landing app with Vercel's Build Output API |
 | `npm run vercel:landing:deploy:preview` | Deploy a preview-safe prebuilt landing artifact to Vercel |
 | `npm run vercel:landing:deploy:production` | Promote a prebuilt landing artifact to Vercel production |
+| `npm run vercel:frontend:pull:preview` | Pull preview settings for the frontend Vercel project (rooted at `frontend/`) |
+| `npm run vercel:frontend:pull:production` | Pull production settings for the frontend Vercel project |
+| `npm run vercel:frontend:build` | Build the frontend app with Vercel's Build Output API |
+| `npm run vercel:frontend:deploy:preview` | Deploy a preview-safe prebuilt frontend artifact to Vercel |
+| `npm run vercel:frontend:deploy:production` | Promote the prebuilt frontend artifact to Vercel production |
 
 ## Documentation
 
 - [`docs/api-contracts.md`](docs/api-contracts.md) - Request/response contracts
 - [`docs/design-system.md`](docs/design-system.md) - UI guidelines and component patterns
+- [`docs/beta-zero-paid-deploy.md`](docs/beta-zero-paid-deploy.md) - zero-paid beta deploy runbook (Vercel + DuckDNS + single-host backend)
+
+## Authors
+
+Built as a Miami University CSE 449 Senior Design project.
+
+- **[Ayush Yadav](https://github.com/yadava5)** — Author. Built the entire frontend and end-to-end integration.
+- **Shree Chaturvedi** — Optimization and strategy.
 
 ## License
 
-[GPL-3.0](LICENSE)
+Licensed under the [GNU General Public License v3.0](LICENSE).

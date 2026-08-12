@@ -157,7 +157,7 @@ export function HomePage() {
           <a
             className="empty-state-enter inline-flex items-center gap-1 rounded-sm text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             style={{ animationDelay: '500ms' }}
-            href="https://agentic-automl.vercel.app/"
+            href="https://agentic-automl-platform.vercel.app/"
             target="_blank"
             rel="noopener noreferrer"
             aria-label="Learn More (opens landing page in new tab)"

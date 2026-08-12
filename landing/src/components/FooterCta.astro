@@ -1,7 +1,4 @@
 ---
-import { getAppLoginUrl } from '@/lib/appLinks';
-
-const appLoginUrl = getAppLoginUrl();
 ---
 
 <section class="footer-cta" aria-labelledby="footer-cta-heading">
@@ -14,12 +11,11 @@ const appLoginUrl = getAppLoginUrl();
     The agent reads your data, writes the code, trains the models,
     and hands you a reproducible result.
   </p>
-  <a href={appLoginUrl} class="footer-cta-button">
-    Get Started
-    <svg class="footer-cta-arrow" width="18" height="18" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <path d="M3.5 8H12.5M12.5 8L8.5 4M12.5 8L8.5 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>
-  </a>
+  <span class="footer-cta-button footer-cta-soon" aria-disabled="true">Coming soon</span>
+  <p class="footer-cta-note">
+    The platform is in active development and open to collaborators and sponsors.
+    <a class="footer-cta-contact" href="mailto:aesh.03.23@gmail.com">Reach out to contribute or sponsor →</a>
+  </p>
 </section>
 
 <style>
@@ -91,5 +87,34 @@ const appLoginUrl = getAppLoginUrl();
   }
   .footer-cta-button:hover .footer-cta-arrow {
     transform: translateX(2px);
+  }
+
+  /* Auth is not yet available on this standalone marketing site, so the
+     primary CTA renders as a non-interactive "Coming soon" state. */
+  .footer-cta-soon {
+    cursor: default;
+    opacity: 0.62;
+    pointer-events: none;
+  }
+
+  /* While auth is "Coming soon", give visitors a real path to get involved. */
+  .footer-cta-note {
+    margin: 24px auto 0;
+    max-width: 560px;
+    font-family: 'Geist Mono Variable', monospace;
+    font-size: 13.5px;
+    line-height: 1.55;
+    color: var(--text-dim);
+  }
+  .footer-cta-contact {
+    color: var(--text-muted);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: color var(--dur-fast) var(--ease-linear-default),
+                border-color var(--dur-fast) var(--ease-linear-default);
+  }
+  .footer-cta-contact:hover {
+    color: var(--text);
+    border-bottom-color: hsl(var(--border-accent, var(--border)));
   }
 </style>

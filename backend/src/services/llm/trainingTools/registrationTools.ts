@@ -20,6 +20,8 @@ import { resolveExperiment } from './types.js';
 import type { TrainingToolContext, TrainingToolHandler, TrainingToolResult } from './types.js';
 import {
   extractWorkflowPrepSegmentsFromToolCalls,
+  extractWorkflowTargetColumnFromToolResults,
+  normalizeTrainingCellIds,
   normalizeWorkflowPrepSegments,
 } from './workflowPrepSegments.js';
 
@@ -191,6 +193,14 @@ function normalizeMetricsRecord(metrics: unknown): Record<string, number> {
     }
   }
   return normalized;
+}
+
+function normalizeTargetColumn(value: unknown): string | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
 }
 
 function resolveRegistrationMetrics(
@@ -399,25 +409,46 @@ export const registerModel: TrainingToolHandler = async (
   const featureColumns = Array.isArray(experiment.featureColumns)
     ? experiment.featureColumns.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
     : undefined;
-  const workflowPrepSegments = (() => {
-    const stored = normalizeWorkflowPrepSegments(experiment.workflowPrepSegments);
-    if (stored.length > 0) {
-      return stored;
+  const trainingCellIds = normalizeTrainingCellIds(experiment.trainingCellIds);
+  const history = (run.metadata as { history?: unknown } | undefined)?.history as {
+    toolCalls?: unknown[];
+    toolResults?: unknown[];
+  } | undefined;
+  const storedWorkflowPrepSegments = normalizeWorkflowPrepSegments(experiment.workflowPrepSegments);
+  const historyWorkflowPrepSegments = extractWorkflowPrepSegmentsFromToolCalls(
+    history?.toolCalls,
+    String(experiment.experimentId ?? ''),
+    trainingCellIds,
+    history?.toolResults,
+  );
+  const workflowPrepSegments = historyWorkflowPrepSegments.length > 0
+    ? historyWorkflowPrepSegments
+    : storedWorkflowPrepSegments;
+  const historyTargetColumn = extractWorkflowTargetColumnFromToolResults(
+    history?.toolResults,
+    trainingCellIds,
+  );
+  const targetColumn = (() => {
+    const explicitTargetColumn = normalizeTargetColumn(experiment.targetColumn);
+    if (historyTargetColumn && explicitTargetColumn && historyTargetColumn !== explicitTargetColumn) {
+      appLogger.warn('[registerModel] Training completion target differs from experiment target; using workflow history value', {
+        experimentId: experiment.experimentId,
+        explicitTargetColumn,
+        historyTargetColumn,
+      });
     }
-    const cellIds = Array.isArray(experiment.trainingCellIds)
-      ? experiment.trainingCellIds.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
-      : null;
-    const history = (run.metadata as { history?: unknown } | undefined)?.history as { toolCalls?: unknown[] } | undefined;
-    return extractWorkflowPrepSegmentsFromToolCalls(history?.toolCalls, String(experiment.experimentId ?? ''), cellIds);
+    return historyTargetColumn ?? explicitTargetColumn;
   })();
+  if (historyWorkflowPrepSegments.length > 0) {
+    experiment.workflowPrepSegments = historyWorkflowPrepSegments;
+  }
+  if (targetColumn) {
+    experiment.targetColumn = targetColumn;
+  }
   const modelName = typeof args.modelName === 'string' ? args.modelName : 'Untitled Model';
   const modelType = typeof args.modelType === 'string' ? args.modelType : 'unknown';
   const runtimeDependencies = (() => {
     const stored = normalizeRuntimeDependencies(experiment.runtimeDependencies);
-    const history = (run.metadata as { history?: unknown } | undefined)?.history as {
-      toolCalls?: unknown[];
-      toolResults?: unknown[];
-    } | undefined;
     const installed = extractSuccessfulRuntimeDependenciesFromHistory(
       history?.toolCalls,
       history?.toolResults,
@@ -484,9 +515,7 @@ export const registerModel: TrainingToolHandler = async (
       trainingMs: typeof experiment.trainingDurationMs === 'number'
         ? experiment.trainingDurationMs
         : undefined,
-      targetColumn: typeof experiment.targetColumn === 'string'
-        ? experiment.targetColumn
-        : undefined,
+      targetColumn,
       featureColumns,
       ...(Object.keys(sampleRequest).length > 0 ? { sampleRequest } : {}),
       ...(Object.keys(featureTypes).length > 0 ? { featureTypes } : {}),

@@ -267,6 +267,18 @@ describe('deploymentManager', () => {
     expect(mockBuildInferenceDockerRunArgs).not.toHaveBeenCalled();
   });
 
+  it('rejects models that belong to a different project as not found', async () => {
+    const model = makeModel({ projectId: 'project-2' });
+    await persistArtifact(model);
+    mockGetModelById.mockResolvedValue(model);
+
+    await expect(deployModel(model.modelId, 'project-1', 'endpoint')).rejects.toMatchObject({
+      code: 'MODEL_PROJECT_MISMATCH',
+      message: 'Model not found',
+    });
+    expect(mockDeploymentRepo.create).not.toHaveBeenCalled();
+  });
+
   it('marks the deployment failed when the inference container exits during readiness', async () => {
     vi.useFakeTimers();
 

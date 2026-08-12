@@ -35,6 +35,10 @@
  *   FUNCTIONAL_TARGET_COLUMN    override target column (default 'churned')
  *   FUNCTIONAL_DATASET          fixture basename (default
  *                               mock_customer_churn_clean.csv)
+ *   FUNCTIONAL_MODEL            workflow model override (default
+ *                               'gpt-5.4-mini')
+ *   FUNCTIONAL_REASONING        workflow reasoning effort override (default
+ *                               'medium')
  *
  * Runtime targets:
  *   - upload+nav only: ~25-35s
@@ -47,13 +51,17 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
-const API_BASE = `${process.env.AUTOML_API_BASE_URL ?? 'http://127.0.0.1:4000'}/api`;
+import { getApiBase } from '../helpers';
+
+const API_BASE = getApiBase();
 const testDir = path.dirname(fileURLToPath(import.meta.url));
 const DATASET_FILENAME = process.env.FUNCTIONAL_DATASET ?? 'mock_customer_churn_clean.csv';
 const DATASET_PATH = path.resolve(testDir, '../fixtures', DATASET_FILENAME);
 const TARGET_COLUMN = process.env.FUNCTIONAL_TARGET_COLUMN ?? 'churned';
 const SKIP_WORKFLOWS = process.env.FUNCTIONAL_SKIP_WORKFLOWS === '1';
 const RUN_DEPLOY = process.env.FUNCTIONAL_DEPLOY === '1';
+const WORKFLOW_MODEL = process.env.FUNCTIONAL_MODEL ?? 'gpt-5.4-mini';
+const WORKFLOW_REASONING = process.env.FUNCTIONAL_REASONING ?? 'medium';
 
 interface AuthResponse {
   accessToken: string;
@@ -163,6 +171,14 @@ async function streamWorkflow(
   if (!res.ok()) throw new Error(`workflow stream failed: ${res.status()} ${await res.text()}`);
   const body = await res.text();
   return body.split('\n').filter((line) => line.trim().length > 0);
+}
+
+function withWorkflowModel(payload: Record<string, unknown>): Record<string, unknown> {
+  return {
+    ...payload,
+    model: WORKFLOW_MODEL,
+    reasoningEffort: WORKFLOW_REASONING,
+  };
 }
 
 function parseNdjson(lines: string[]): Record<string, unknown>[] {
@@ -320,14 +336,13 @@ test('seven-phase functional walk — data artifacts visible at each leg', async
     const lines = await streamWorkflow(
       request,
       auth.accessToken,
-      {
+      withWorkflowModel({
         projectId: project.id,
         phase: 'preprocessing',
         datasetId: uploadDatasetId,
         targetColumn: TARGET_COLUMN,
-        prompt:
-          'Drop rows with missing values and one-hot encode any categorical columns. Keep the run short.',
-      },
+        prompt: 'Create a safe preprocessing checkpoint for this dataset and summarize the result.',
+      }),
       240_000,
     );
     const events = parseNdjson(lines);
@@ -358,13 +373,13 @@ test('seven-phase functional walk — data artifacts visible at each leg', async
     const lines = await streamWorkflow(
       request,
       auth.accessToken,
-      {
+      withWorkflowModel({
         projectId: project.id,
         phase: 'feature_engineering',
         datasetId: preprocessedDatasetId,
         targetColumn: TARGET_COLUMN,
         prompt: `Propose 2 engineered features that should help predict ${TARGET_COLUMN}. Keep it simple.`,
-      },
+      }),
       240_000,
     );
     const events = parseNdjson(lines);
@@ -420,14 +435,14 @@ test('seven-phase functional walk — data artifacts visible at each leg', async
     const firstTurnLines = await streamWorkflow(
       request,
       auth.accessToken,
-      {
+      withWorkflowModel({
         projectId: project.id,
         phase: 'training',
         datasetId: fePreparedDatasetId,
         targetColumn: TARGET_COLUMN,
         prompt:
           `Train a logistic_regression model to predict ${TARGET_COLUMN}. Use the correct task type.`,
-      },
+      }),
       240_000,
     );
     const firstEvents = parseNdjson(firstTurnLines);
@@ -457,7 +472,7 @@ test('seven-phase functional walk — data artifacts visible at each leg', async
     const approvalLines = await streamWorkflow(
       request,
       auth.accessToken,
-      {
+      withWorkflowModel({
         projectId: project.id,
         phase: 'training',
         runId,
@@ -465,7 +480,7 @@ test('seven-phase functional walk — data artifacts visible at each leg', async
         datasetId: fePreparedDatasetId,
         targetColumn: TARGET_COLUMN,
         prompt: `Approved. Proceed with training the selected model: ${experimentName}.`,
-      },
+      }),
       540_000,
     );
     const approvalEvents = parseNdjson(approvalLines);

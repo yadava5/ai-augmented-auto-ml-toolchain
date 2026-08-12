@@ -58,6 +58,10 @@ function extractTrainingTargetColumn(content: string): string | undefined {
   return undefined;
 }
 
+function isWorkflowThreadReference(value: unknown): boolean {
+  return typeof value === 'string' && /^(?:[a-z]+-)*thread[-:]/i.test(value.trim());
+}
+
 function truncateToolResult(result: ToolResult): ToolResult {
   if (result.output === undefined || result.output === null) return result;
   const json = JSON.stringify(result.output);
@@ -250,6 +254,27 @@ async function executeWorkflowToolCall(
   // falling back to the latest project-level feature run.
   if (phaseConfig?.phase === 'feature_engineering' && !('runId' in enrichedArgs)) {
     enrichedArgs.runId = state.run.runId;
+  }
+
+  // Preprocessing continuity is scoped to the latest preprocessing lifecycle
+  // run, not the workflow run. Bind omitted/invalid runIds back to the
+  // controller-selected preprocessing run so fresh prompts keep editing the
+  // same logical processed dataset instead of silently forking a new lineage.
+  if (phaseConfig?.phase === 'preprocessing') {
+    const controllerRunId = typeof state.controllerSummary?.runId === 'string'
+      && !isWorkflowThreadReference(state.controllerSummary.runId)
+      ? state.controllerSummary.runId.trim()
+      : undefined;
+    const explicitRunId = typeof enrichedArgs.runId === 'string'
+      ? enrichedArgs.runId.trim()
+      : undefined;
+
+    if (
+      controllerRunId
+      && (!explicitRunId || isWorkflowThreadReference(explicitRunId))
+    ) {
+      enrichedArgs.runId = controllerRunId;
+    }
   }
 
   // PhaseConfig dispatch for phase-specific tools

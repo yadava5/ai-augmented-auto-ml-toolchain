@@ -8,10 +8,13 @@ import { requireDeploymentOwnership, type DeploymentAuthRequest } from '../middl
 import { createDatasetRepository } from '../repositories/datasetRepository.js';
 import { createDeploymentRepository } from '../repositories/deploymentRepository.js';
 import { createModelRepository } from '../repositories/modelRepository.js';
+import { getDeploymentCreateErrorStatus, isDeploymentCreateError } from '../services/deploymentErrors.js';
 import * as deploymentManager from '../services/deploymentManager.js';
 import type { AuthRequest } from '../types/auth.js';
+import type { DeploymentRecord } from '../types/deployment.js';
 import { loadModelFile } from '../utils/modelFileLoader.js';
 import { resolveTargetColumn } from '../utils/modelUtils.js';
+import { toClientDeployment } from '../utils/publicUrl.js';
 
 export function createDeploymentsRouter(): Router {
   const router = Router();
@@ -26,8 +29,17 @@ export function createDeploymentsRouter(): Router {
       res.status(400).json({ error: 'modelId, projectId, and name are required' });
       return;
     }
-    const deployment = await deploymentManager.deployModel(modelId, projectId, name);
-    res.status(201).json({ deployment });
+    let deployment: DeploymentRecord;
+    try {
+      deployment = await deploymentManager.deployModel(modelId, projectId, name);
+    } catch (error) {
+      if (isDeploymentCreateError(error)) {
+        res.status(getDeploymentCreateErrorStatus(error)).json({ error: error.message });
+        return;
+      }
+      throw error;
+    }
+    res.status(201).json({ deployment: toClientDeployment(req, deployment) });
   }));
 
   // GET / — List deployments for project
@@ -35,12 +47,12 @@ export function createDeploymentsRouter(): Router {
     const projectId = req.query.projectId as string;
     if (!projectId) { res.status(400).json({ error: 'projectId query param required' }); return; }
     const deployments = await deploymentRepo.listByProject(projectId);
-    res.json({ deployments });
+    res.json({ deployments: deployments.map((deployment) => toClientDeployment(req, deployment)) });
   }));
 
   // GET /:id — Get single deployment
   router.get('/:id', requireDeploymentOwnership, asyncHandler(async (req: DeploymentAuthRequest, res: Response) => {
-    res.json({ deployment: req.deployment });
+    res.json({ deployment: toClientDeployment(req, req.deployment!) });
   }));
 
   // DELETE /:id — Delete deployment
@@ -62,7 +74,7 @@ export function createDeploymentsRouter(): Router {
       return;
     }
     const updated = await deploymentRepo.getById(deployment.deploymentId);
-    res.json({ deployment: updated });
+    res.json({ deployment: updated ? toClientDeployment(req, updated) : updated });
   }));
 
   // GET /:id/schema — Full schema payload for playground

@@ -4,14 +4,12 @@
 // and collapses to "AutoML" after 1.6s. The brand's width is reserved
 // to the long form so nav links / CTA on the right never shift.
 import ThemeToggleIsland from './ThemeToggleIsland';
-import { getAppLoginUrl } from '@/lib/appLinks';
 
 const navLinks = [
   { label: 'Quick Look',   href: '#product' },
   { label: 'Features',     href: '#features' },
   { label: 'How it works', href: '#how-it-works' },
 ];
-const appLoginUrl = getAppLoginUrl();
 ---
 
 <header class="nav-root">
@@ -39,11 +37,11 @@ const appLoginUrl = getAppLoginUrl();
       {navLinks.map((link) => (
         <a href={link.href}>{link.label}</a>
       ))}
+      <a href="/system-card" target="_blank" rel="noopener noreferrer">System Card</a>
     </nav>
 
     <div class="nav-right">
-      <a href={appLoginUrl} class="nav-signin">Sign In</a>
-      <a href={appLoginUrl} class="nav-cta">Get Started</a>
+      <span class="nav-cta nav-cta-soon" aria-disabled="true">Coming soon</span>
     </div>
 
     <button
@@ -74,11 +72,11 @@ const appLoginUrl = getAppLoginUrl();
       {navLinks.map((link) => (
         <a href={link.href}>{link.label}</a>
       ))}
+      <a href="/system-card" target="_blank" rel="noopener noreferrer">System Card</a>
     </nav>
     <div class="mobile-nav-divider"></div>
     <div class="mobile-nav-actions">
-      <a href={appLoginUrl} class="mobile-nav-signin">Sign In</a>
-      <a href={appLoginUrl} class="mobile-nav-cta">Get Started</a>
+      <span class="mobile-nav-cta nav-cta-soon" aria-disabled="true">Coming soon</span>
     </div>
     <div class="mobile-nav-theme">
       <span class="mobile-nav-theme-label">Theme</span>
@@ -301,6 +299,14 @@ const appLoginUrl = getAppLoginUrl();
       0 0 0 1px rgba(255, 255, 255, 0.06),
       inset 0 1px 0 rgba(255, 255, 255, 0.3),
       0 0 2px rgba(0, 0, 0, 0.16);
+  }
+
+  /* Auth is not yet available on this standalone marketing site, so the
+     primary CTA renders as a non-interactive "Coming soon" state. */
+  .nav-cta-soon {
+    cursor: default;
+    opacity: 0.62;
+    pointer-events: none;
   }
 
   /* ── Hamburger button — hidden on desktop ── */

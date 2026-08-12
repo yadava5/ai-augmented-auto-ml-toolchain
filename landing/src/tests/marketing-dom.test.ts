@@ -29,11 +29,13 @@ describe('marketing DOM (post-build)', () => {
   });
 
   it('contains the pulse announcement', () => {
-    expect(readDist()).toContain('Now supporting GPT 5.4 class reasoning');
+    expect(readDist()).toContain('Powered by frontier LLMs');
   });
 
   it('contains the primary CTA', () => {
-    expect(readDist()).toContain('Get Started');
+    // Auth is not hosted on this standalone marketing site, so the primary
+    // CTA renders as a non-interactive "Coming soon" state.
+    expect(readDist()).toContain('Coming soon');
   });
 
   it('contains all 3 nav link labels', () => {

@@ -2,9 +2,11 @@ import type { Request, Router } from 'express';
 import type { Pool } from 'pg';
 import { z } from 'zod';
 
+import { env } from '../config.js';
 import { appLogger } from '../logging/logger.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { requireAuth, requireAuthAllowUnverified, invalidateUserCache } from '../middleware/auth.js';
+import { authAttemptLimiter } from '../middleware/authRateLimit.js';
 import { validateRequest } from '../middleware/validateRequest.js';
 import { UserRepository } from '../repositories/userRepository.js';
 import { authService } from '../services/authService.js';
@@ -90,6 +92,21 @@ export function registerAuthRoutes(router: Router, pool: Pool) {
     await emailService.sendVerificationEmail(email, token);
   }
 
+  function shouldAutoVerifyEmail(): boolean {
+    return env.nodeEnv !== 'production'
+      && (env.devBypassEmailVerification || !emailService.isConfigured());
+  }
+
+  async function ensureVerifiedUser(user: SafeUser): Promise<SafeUser> {
+    if (user.email_verified || !shouldAutoVerifyEmail()) {
+      return user;
+    }
+
+    await userRepository.markEmailVerified(user.user_id);
+    invalidateUserCache(user.user_id);
+    return await userRepository.findById(user.user_id) ?? { ...user, email_verified: true };
+  }
+
   // POST /auth/register
   router.post(
     '/auth/register',
@@ -104,12 +121,15 @@ export function registerAuthRoutes(router: Router, pool: Pool) {
       }
 
       const password_hash = await authService.hashPassword(password);
-      const user = await userRepository.create({ email, password, name, password_hash });
+      const createdUser = await userRepository.create({ email, name, password_hash });
+      const user = await ensureVerifiedUser(createdUser);
 
-      // Fire-and-forget: don't block registration on email delivery
-      sendVerificationToken(user.user_id, user.email).catch((err) =>
-        appLogger.error(`[auth] failed to send verification email to ${user.email}`, err)
-      );
+      if (!user.email_verified) {
+        // Fire-and-forget: don't block registration on email delivery
+        sendVerificationToken(user.user_id, user.email).catch((err) =>
+          appLogger.error(`[auth] failed to send verification email to ${user.email}`, err)
+        );
+      }
 
       const tokens = await issueAndStoreTokens(user, req);
 
@@ -119,8 +139,13 @@ export function registerAuthRoutes(router: Router, pool: Pool) {
   );
 
   // POST /auth/login
+  // Rate-limited per (ip, email) to blunt credential stuffing. See #345 and
+  // backend/src/middleware/authRateLimit.ts. The limiter runs before the
+  // Zod validator so malformed bodies still consume a slot (an attacker
+  // can't sidestep the counter by sending garbage).
   router.post(
     '/auth/login',
+    authAttemptLimiter,
     validateRequest(loginSchema),
     asyncHandler(async (req, res) => {
       const { email, password, rememberMe } = req.body;
@@ -131,14 +156,28 @@ export function registerAuthRoutes(router: Router, pool: Pool) {
         return;
       }
 
+      // Issue #344 guard — refuse password login on non-password accounts.
+      // Runs BEFORE verifyPassword so bcrypt doesn't get a chance to succeed
+      // against the placeholder hash stored for OAuth rows. Error message is
+      // deliberately distinct from the generic "Invalid email or password" so
+      // the UI can route the user to the correct provider button.
+      if (userWithHash.auth_provider !== 'password') {
+        sendUnauthorized(
+          res,
+          `This account uses ${userWithHash.auth_provider === 'google' ? 'Google' : userWithHash.auth_provider} sign-in. Use that button instead.`
+        );
+        return;
+      }
+
       const validPassword = await authService.verifyPassword(password, userWithHash.password_hash);
       if (!validPassword) {
         sendUnauthorized(res, 'Invalid email or password');
         return;
       }
 
-      const user = userRepository.toSafeUser(userWithHash);
-      await userRepository.updateLastLogin(user.user_id);
+      await userRepository.updateLastLogin(userWithHash.user_id);
+      const refreshedUser = await userRepository.findById(userWithHash.user_id) ?? userRepository.toSafeUser(userWithHash);
+      const user = await ensureVerifiedUser(refreshedUser);
       const tokens = await issueAndStoreTokens(user, req, rememberMe);
 
       appLogger.info(`[auth] login ${user.email}`);
@@ -242,13 +281,18 @@ export function registerAuthRoutes(router: Router, pool: Pool) {
     '/auth/me',
     requireAuth,
     asyncHandler(async (req: AuthenticatedRequest, res) => {
-      return res.json({ user: req.user });
+      const user = await ensureVerifiedUser(req.user);
+      return res.json({ user });
     })
   );
 
   // POST /auth/forgot-password
+  // Shares the /auth/login rate-limit bucket (same (ip, email) key) — without
+  // this, an attacker could mail-bomb a victim with reset emails or probe
+  // email existence via timing. See #345.
   router.post(
     '/auth/forgot-password',
+    authAttemptLimiter,
     validateRequest(forgotPasswordSchema),
     asyncHandler(async (req, res) => {
       const { email } = req.body;
@@ -372,9 +416,12 @@ export function registerAuthRoutes(router: Router, pool: Pool) {
     requireAuthAllowUnverified,
     validateRequest(resendVerificationSchema),
     asyncHandler(async (req: AuthenticatedRequest, res) => {
-      const user = req.user;
+      const user = await ensureVerifiedUser(req.user);
 
       if (user.email_verified) {
+        if (shouldAutoVerifyEmail()) {
+          return res.json({ message: 'Email verification bypassed' });
+        }
         sendBadRequest(res, 'Email is already verified');
         return;
       }
@@ -416,7 +463,8 @@ export function registerAuthRoutes(router: Router, pool: Pool) {
         sendNotFound(res, 'User');
         return;
       }
-      return res.json({ emailVerified: freshUser.email_verified });
+      const user = await ensureVerifiedUser(freshUser);
+      return res.json({ emailVerified: user.email_verified });
     })
   );
 

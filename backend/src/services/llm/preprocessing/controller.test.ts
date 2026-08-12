@@ -151,7 +151,7 @@ describe('resolvePreprocessingControllerTurn', () => {
     expect(decision.request.toolChoice).toBe('any');
   });
 
-  it('routes failed execution results back to write_code for recovery', async () => {
+  it('routes failed execution results back to generate_code for repair', async () => {
     const client = createClient({
       turnMode: 'action_required',
       rationale: 'unused'
@@ -182,8 +182,8 @@ describe('resolvePreprocessingControllerTurn', () => {
       threadId: 'prep-thread:test:execution-failed'
     });
 
-    expect(decision.summary.currentNode).toBe('write_code');
-    expect(decision.summary.allowedTools).toContain('run_cell');
+    expect(decision.summary.currentNode).toBe('generate_code');
+    expect(decision.summary.allowedTools).toContain('materialize_step_code');
     expect(decision.summary.requireToolCall).toBe(true);
   });
 
@@ -241,6 +241,66 @@ describe('resolvePreprocessingControllerTurn', () => {
     expect(decision.summary.currentNode).toBe('write_code');
     expect(decision.summary.allowedTools).toContain('write_cell');
     expect(decision.summary.allowedTools).toContain('run_cell');
+  });
+
+  it('routes run_cell timeouts to record_execution so the failure is recorded', async () => {
+    const client = createClient({
+      turnMode: 'action_required',
+      rationale: 'unused'
+    });
+    const toolResults: ToolResult[] = [
+      {
+        id: 'result-1',
+        tool: 'run_cell',
+        output: {
+          cellId: 'cell-timeout',
+          status: 'timeout'
+        }
+      }
+    ];
+
+    const decision = await resolvePreprocessingControllerTurn({
+      client,
+      dataset,
+      prompt: 'Continue',
+      continuation: true,
+      toolResults,
+      threadId: 'prep-thread:test:run-cell-timeout'
+    });
+
+    expect(decision.summary.currentNode).toBe('record_execution');
+    expect(decision.summary.allowedTools).toContain('execute_transformation_step');
+    expect(decision.summary.requireToolCall).toBe(true);
+  });
+
+  it('routes status-less run_cell results to record_execution instead of assuming success', async () => {
+    const client = createClient({
+      turnMode: 'action_required',
+      rationale: 'unused'
+    });
+    const toolResults: ToolResult[] = [
+      {
+        id: 'result-1',
+        tool: 'run_cell',
+        output: {
+          cellId: 'cell-unknown',
+          _truncated: true,
+          _originalSize: 999999
+        }
+      }
+    ];
+
+    const decision = await resolvePreprocessingControllerTurn({
+      client,
+      dataset,
+      prompt: 'Continue',
+      continuation: true,
+      toolResults,
+      threadId: 'prep-thread:test:run-cell-indeterminate'
+    });
+
+    expect(decision.summary.currentNode).toBe('record_execution');
+    expect(decision.summary.allowedTools).toContain('execute_transformation_step');
   });
 
   it('blocks on pending approval without classifying again', async () => {
@@ -470,6 +530,29 @@ describe('resolvePreprocessingControllerTurn', () => {
     });
 
     expect(decision.summary.turnMode).toBe('action_required');
+    expect(decision.summary.runId).toBe('prep-run-1');
+    expect(decision.summary.currentNode).toBe('plan_step');
+    expect(decision.summary.requireToolCall).toBe(true);
+  });
+
+  it('reuses the persisted preprocessing run id on a fresh prompt without restored tool history', async () => {
+    const client = createClient({
+      turnMode: 'action_required',
+      rationale: 'The user asked for the next preprocessing action.'
+    });
+
+    const decision = await resolvePreprocessingControllerTurn({
+      client,
+      dataset,
+      prompt: 'Normalize the remaining categorical columns.',
+      continuation: false,
+      toolResults: [],
+      persistedRunId: 'prep-run-42',
+      threadId: 'prep-thread:test:fresh-action-persisted-run'
+    });
+
+    expect(decision.summary.turnMode).toBe('action_required');
+    expect(decision.summary.runId).toBe('prep-run-42');
     expect(decision.summary.currentNode).toBe('plan_step');
     expect(decision.summary.requireToolCall).toBe(true);
   });

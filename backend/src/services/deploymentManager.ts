@@ -21,6 +21,7 @@ import type {
 
 import { ensureRuntimeImage } from './container/imageManager.js';
 import { buildInferenceDockerRunArgs } from './container/inferenceDockerBuilder.js';
+import { DeploymentCreateError, isDeploymentCreateError } from './deploymentErrors.js';
 import { execDocker } from './dockerUtils.js';
 import { buildInferenceServerScript } from './inferenceServerBuilder.js';
 import { loadRuntimeDependencies } from './runtimeDependencies.js';
@@ -105,33 +106,42 @@ function deduplicationKey(modelId: string, projectId: string): string {
 
 async function resolveModelArtifactDir(
   model: { artifact?: { path?: string; filename?: string } },
-  modelId: string,
 ): Promise<string> {
   const artifact = model.artifact;
   const artifactPath = artifact?.path?.trim();
   if (!artifactPath) {
-    throw new Error(`Model ${modelId} has no persisted artifact path`);
+    throw new DeploymentCreateError('MISSING_ARTIFACT', 'Model has no artifact — train the model before deploying');
   }
 
   if (!isAbsolute(artifactPath)) {
-    throw new Error(`Model ${modelId} artifact path must be absolute`);
+    throw new DeploymentCreateError('INVALID_ARTIFACT', 'Model artifact path must be absolute');
   }
 
   const resolvedStorageRoot = resolve(env.modelStorageDir);
   const resolvedArtifactPath = resolve(artifactPath);
   const artifactRelativePath = relative(resolvedStorageRoot, resolvedArtifactPath);
   if (!artifactRelativePath || artifactRelativePath.startsWith('..') || isAbsolute(artifactRelativePath)) {
-    throw new Error(`Model ${modelId} artifact path must stay within deployment storage`);
+    throw new DeploymentCreateError('INVALID_ARTIFACT', 'Model artifact path must stay within deployment storage');
   }
 
   const expectedFilename = artifact?.filename?.trim() || 'model.joblib';
   if (expectedFilename !== 'model.joblib' || basename(resolvedArtifactPath) !== 'model.joblib') {
-    throw new Error(`Model ${modelId} artifact must be stored as model.joblib for deployment`);
+    throw new DeploymentCreateError('INVALID_ARTIFACT', 'Model artifact must be stored as model.joblib for deployment');
   }
 
-  const artifactStat = await stat(resolvedArtifactPath);
+  let artifactStat: Awaited<ReturnType<typeof stat>>;
+  try {
+    artifactStat = await stat(resolvedArtifactPath);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException | undefined)?.code;
+    if (code === 'ENOENT') {
+      throw new DeploymentCreateError('MISSING_ARTIFACT', 'Model artifact is missing from deployment storage');
+    }
+    throw new DeploymentCreateError('INVALID_ARTIFACT', 'Model artifact could not be validated');
+  }
+
   if (!artifactStat.isFile()) {
-    throw new Error(`Model ${modelId} artifact path is not a file`);
+    throw new DeploymentCreateError('INVALID_ARTIFACT', 'Model artifact path is not a file');
   }
 
   return dirname(resolvedArtifactPath);
@@ -303,19 +313,27 @@ async function deployModelInternal(
   ).length;
 
   if (activeCount >= MAX_DEPLOYMENTS_PER_PROJECT) {
-    throw new Error(`Deployment limit reached: max ${MAX_DEPLOYMENTS_PER_PROJECT} active deployments per project`);
+    throw new DeploymentCreateError(
+      'DEPLOYMENT_LIMIT_REACHED',
+      `Deployment limit reached: max ${MAX_DEPLOYMENTS_PER_PROJECT} active deployments per project`,
+    );
   }
 
   // 2. Validate model eligibility
   const model = await modelRepository.getById(modelId);
-  if (!model) throw new Error(`Model not found: ${modelId}`);
+  if (!model) {
+    throw new DeploymentCreateError('MODEL_NOT_FOUND', 'Model not found');
+  }
+  if (model.projectId !== projectId) {
+    throw new DeploymentCreateError('MODEL_PROJECT_MISMATCH', 'Model not found');
+  }
   if (model.taskType !== 'classification' && model.taskType !== 'regression') {
-    throw new Error(`Model task type "${model.taskType}" is not eligible for deployment (requires classification or regression)`);
+    throw new DeploymentCreateError(
+      'INELIGIBLE_TASK_TYPE',
+      `Model task type "${model.taskType}" is not eligible for deployment (requires classification or regression)`,
+    );
   }
-  if (!model.artifact?.path) {
-    throw new Error('Model has no artifact — train the model before deploying');
-  }
-  const modelArtifactDir = await resolveModelArtifactDir(model, modelId);
+  const modelArtifactDir = await resolveModelArtifactDir(model);
 
   // 3. Write 'creating' row to DB BEFORE anything else (crash safety)
   let record: DeploymentRecord = await repo.create({
@@ -400,7 +418,10 @@ async function deployModelInternal(
     await updateDeploymentStatus(deploymentId, 'failed', { errorMessage });
     broadcast(deploymentId, { type: 'status_change', deploymentId, status: 'failed', errorMessage });
     appLogger.error(`${LOG_TAG} Deployment ${deploymentId} failed`, err);
-    throw err;
+    if (isDeploymentCreateError(err)) {
+      throw err;
+    }
+    throw new DeploymentCreateError('RUNTIME_FAILURE', errorMessage);
   }
 }
 
@@ -460,7 +481,7 @@ export async function startDeployment(deploymentId: string): Promise<void> {
 
   const model = await modelRepository.getById(record.modelId);
   if (!model) throw new Error(`Model not found: ${record.modelId}`);
-  const modelArtifactDir = await resolveModelArtifactDir(model, record.modelId);
+  const modelArtifactDir = await resolveModelArtifactDir(model);
 
   // Regenerate serve.py in case it was lost
   const deploymentDir = join(env.deploymentStorageDir, deploymentId);

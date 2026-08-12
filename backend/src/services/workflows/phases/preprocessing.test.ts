@@ -6,10 +6,14 @@ import * as notebookService from '../../notebook/notebookService.js';
 import type { WorkflowGraphState } from '../graphState.js';
 
 import { inferPreprocessingActionNode } from './preprocessing/transition.js';
-import { preprocessingPhaseConfig } from './preprocessing.js';
+import {
+  buildPreprocessingCodeGenerationSystemPrompt,
+  buildSegmentedPreprocessingCellContent,
+  preprocessingPhaseConfig
+} from './preprocessing.js';
 
 describe('preprocessingPhaseConfig', () => {
-  it('routes failed execution status to validate to preserve existing behavior', () => {
+  it('routes failed execution status back to generate_code for repair', () => {
     expect(inferPreprocessingActionNode([
       {
         id: 'result-1',
@@ -25,7 +29,20 @@ describe('preprocessingPhaseConfig', () => {
           }
         }
       }
-    ])).toBe('validate');
+    ])).toBe('generate_code');
+  });
+
+  it('routes run_cell timeouts to record_execution so the failure is persisted', () => {
+    expect(inferPreprocessingActionNode([
+      {
+        id: 'result-timeout',
+        tool: 'run_cell',
+        output: {
+          cellId: 'cell-timeout',
+          status: 'timeout'
+        }
+      }
+    ])).toBe('record_execution');
   });
 
   it('routes failed validation status to commit when no approval pause is requested', () => {
@@ -68,6 +85,105 @@ describe('preprocessingPhaseConfig', () => {
         }
       }
     ])).toBe('summarize');
+  });
+
+  it('builds segmented preprocessing cells with visible pd and np imports on the load cell', () => {
+    const firstCell = buildSegmentedPreprocessingCellContent({
+      segment: [
+        'import pandas as pd',
+        'import numpy as np',
+        'missing_summary = df.isna().sum()'
+      ].join('\n'),
+      segmentIndex: 0,
+      segmentCount: 2,
+      dataset: {
+        filename: 'data.csv',
+        datasetId: 'dataset-1',
+        fileType: 'csv'
+      }
+    });
+    const lastCell = buildSegmentedPreprocessingCellContent({
+      segment: 'df = df.fillna(0)',
+      segmentIndex: 1,
+      segmentCount: 2,
+      dataset: {
+        filename: 'data.csv',
+        datasetId: 'dataset-1',
+        fileType: 'csv'
+      }
+    });
+
+    expect(firstCell.split('\n').slice(0, 4)).toEqual([
+      'import pandas as pd',
+      'import numpy as np',
+      '',
+      'df = load_preprocessing_dataset("data.csv", "dataset-1", "csv", "df")'
+    ]);
+    expect(firstCell.match(/^import pandas as pd$/gm)).toHaveLength(1);
+    expect(firstCell.match(/^import numpy as np$/gm)).toHaveLength(1);
+    expect(lastCell).not.toContain('import pandas as pd');
+    expect(lastCell).not.toContain('import numpy as np');
+    expect(lastCell).toContain('save_preprocessing_dataset("data.csv", "dataset-1", "csv", "df")');
+  });
+
+  it('tells delegated code generation that the notebook scaffold owns imports and dataset I/O', () => {
+    const prompt = buildPreprocessingCodeGenerationSystemPrompt();
+
+    expect(prompt).toContain('imports `pandas as pd` and `numpy as np`');
+    expect(prompt).toContain('Do NOT include imports, dataset load calls, or dataset save calls.');
+  });
+
+  it('rejects explicit preprocessing runIds from another project in the phase executor', async () => {
+    const runRepository = createFilePreprocessingRunRepository(env.preprocessingRunsPath);
+    await runRepository.save({
+      runId: 'prep-run-project-mismatch',
+      projectId: 'project-1',
+      activeDatasetId: 'dataset-1',
+      derivedDatasetIds: [],
+      steps: {},
+      checkpoints: [],
+      events: [],
+      createdAt: '2026-04-03T00:00:00.000Z',
+      updatedAt: '2026-04-03T00:00:00.000Z'
+    });
+
+    const result = await preprocessingPhaseConfig.executePhaseSpecificTool(
+      'list_project_datasets',
+      { runId: 'prep-run-project-mismatch' },
+      {
+        projectId: 'project-2',
+        toolCallId: 'tool-call-project-mismatch',
+        args: { runId: 'prep-run-project-mismatch' },
+        run: {
+          runId: 'workflow-run-project-mismatch',
+          threadId: 'workflow-thread-project-mismatch',
+          projectId: 'project-2',
+          phase: 'preprocessing',
+          status: 'running',
+          currentNode: 'context',
+          revision: 1,
+          retryBudget: 3,
+          repairAttemptCount: 0,
+          createdAt: '2026-04-03T00:00:00.000Z',
+          updatedAt: '2026-04-03T00:00:00.000Z'
+        },
+        turn: {
+          projectId: 'project-2',
+          phase: 'preprocessing'
+        }
+      } as never
+    );
+
+    expect(result).toMatchObject({
+      error: expect.stringContaining('belongs'),
+      output: {
+        isError: true,
+        runId: 'prep-run-project-mismatch',
+        reasonCode: 'RUN_PROJECT_MISMATCH',
+        projectId: 'project-2',
+        runProjectId: 'project-1'
+      }
+    });
   });
 
   it('falls back to persisted preprocessing run state for deterministic validate actions', async () => {
@@ -311,7 +427,7 @@ describe('preprocessingPhaseConfig', () => {
     readCellSpy.mockRestore();
   });
 
-  it('treats a status-less run_cell result without tool error as successful execution', async () => {
+  it('marks a status-less run_cell result without notebook execution markers as failed', async () => {
     const runRepository = createFilePreprocessingRunRepository(env.preprocessingRunsPath);
     await runRepository.save({
       runId: 'prep-run-record-missing-status',
@@ -436,11 +552,147 @@ describe('preprocessingPhaseConfig', () => {
         args: expect.objectContaining({
           runId: 'prep-run-record-missing-status',
           stepId: 'step-3',
-          succeeded: true,
+          succeeded: false,
           cellIds: ['cell-1']
         })
       })
     ]);
+    expect(String(toolCalls?.[0]?.args?.stderr ?? '')).toContain('terminal success markers');
+    expect(readCellSpy).toHaveBeenCalledTimes(1);
+
+    readCellSpy.mockRestore();
+  });
+
+  it('marks explicit run_cell timeouts as failed execution without polling notebook state', async () => {
+    const runRepository = createFilePreprocessingRunRepository(env.preprocessingRunsPath);
+    await runRepository.save({
+      runId: 'prep-run-record-timeout',
+      projectId: 'project-1',
+      activeDatasetId: 'dataset-1',
+      derivedDatasetIds: [],
+      steps: {
+        'step-3b': {
+          stepId: 'step-3b',
+          title: 'Create checkpoint',
+          intentType: 'checkpoint_dataset_state',
+          status: 'pending',
+          toolCallId: 'tool-call-3b',
+          code: '# Cell 1\nprint("timeout")',
+          codeHash: 'hash-3b',
+          version: 2,
+          cellIds: ['cell-timeout'],
+          requiresApproval: false,
+          lastExecuteSucceeded: false,
+          lastValidateSucceeded: false,
+          createdAt: '2026-04-03T00:00:00.000Z',
+          updatedAt: '2026-04-03T00:00:00.000Z'
+        }
+      },
+      checkpoints: [],
+      events: [],
+      createdAt: '2026-04-03T00:00:00.000Z',
+      updatedAt: '2026-04-03T00:00:00.000Z'
+    });
+
+    const readCellSpy = vi.spyOn(notebookService, 'readCell').mockResolvedValue({
+      cellId: 'cell-timeout',
+      notebookId: 'notebook-1',
+      cellType: 'code',
+      title: 'Cell timeout',
+      content: 'print("timeout")',
+      position: 0,
+      metadata: {},
+      executionCount: null,
+      executionOrder: null,
+      executionStatus: null,
+      executionDurationMs: null,
+      executedAt: null,
+      isDirty: false,
+      output: [],
+      outputRefs: [],
+      lockedBy: null,
+      lockedAt: null,
+      createdAt: new Date('2026-04-03T00:00:00.000Z'),
+      updatedAt: new Date('2026-04-03T00:00:00.000Z')
+    });
+
+    const state = {
+      turn: {
+        projectId: 'project-1',
+        phase: 'preprocessing',
+        datasetId: 'dataset-1',
+        notebookId: 'notebook-1',
+        prompt: undefined
+      },
+      run: {
+        runId: 'workflow-run-3b',
+        threadId: 'workflow-thread-3b',
+        projectId: 'project-1',
+        phase: 'preprocessing',
+        status: 'running',
+        currentNode: 'record_execution',
+        revision: 1,
+        retryBudget: 3,
+        repairAttemptCount: 0,
+        activeDatasetId: 'dataset-1',
+        activeNotebookId: 'notebook-1',
+        createdAt: '2026-04-03T00:00:00.000Z',
+        updatedAt: '2026-04-03T00:00:00.000Z'
+      },
+      request: null,
+      latestMessage: '',
+      pendingToolCalls: [],
+      toolCallHistory: [],
+      toolResultHistory: [
+        {
+          id: 'write-result-timeout',
+          tool: 'write_cell',
+          output: {
+            cellId: 'cell-timeout'
+          }
+        },
+        {
+          id: 'run-result-timeout',
+          tool: 'run_cell',
+          output: {
+            cellId: 'cell-timeout',
+            status: 'timeout'
+          }
+        }
+      ],
+      turnStartToolCallCount: 0,
+      askUserPayload: null,
+      planExitPayload: null,
+      uiPayload: null,
+      controllerSummary: {
+        runId: 'prep-run-record-timeout',
+        activeStepId: 'step-3b',
+        currentNode: 'record_execution'
+      },
+      iteration: 0,
+      nextStep: 'invoke_model',
+      pendingInputKind: null,
+      pauseReason: null,
+      errorMessage: null,
+      errorCode: null
+    } as WorkflowGraphState;
+
+    const stageConfig = preprocessingPhaseConfig.getStageConfig('record_execution');
+    const toolCalls = await stageConfig.deterministicAction?.(state);
+
+    expect(toolCalls).toEqual([
+      expect.objectContaining({
+        tool: 'execute_transformation_step',
+        args: expect.objectContaining({
+          runId: 'prep-run-record-timeout',
+          stepId: 'step-3b',
+          succeeded: false,
+          cellIds: ['cell-timeout']
+        })
+      })
+    ]);
+    expect(String(toolCalls?.[0]?.args?.stderr ?? '')).toContain('timeout');
+    expect(readCellSpy).not.toHaveBeenCalled();
 
     readCellSpy.mockRestore();
   });
