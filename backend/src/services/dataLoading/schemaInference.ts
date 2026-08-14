@@ -3,14 +3,18 @@
  */
 
 import type { ColumnDataType, DatasetProfileColumn } from '../../types/dataset.js';
+import { quoteIdentifier } from '../../utils/sqlIdentifier.js';
 
 export function generateCreateTableSql(tableName: string, columns: DatasetProfileColumn[]): string {
   const columnDefs = columns.map((col) => {
     const pgType = inferPostgresType(col.dtype);
-    return `"${col.name}" ${pgType}`;
+    // col.name is the raw CSV/XLSX header row - never sanitised. This runs
+    // through client.query() with no values array, i.e. the simple query
+    // protocol, which executes semicolon-separated statements as a batch.
+    return `${quoteIdentifier(col.name)} ${pgType}`;
   });
 
-  return `CREATE TABLE "${tableName}" (${columnDefs.join(', ')})`;
+  return `CREATE TABLE ${quoteIdentifier(tableName)} (${columnDefs.join(', ')})`;
 }
 
 export function inferPostgresType(dtype: ColumnDataType): string {

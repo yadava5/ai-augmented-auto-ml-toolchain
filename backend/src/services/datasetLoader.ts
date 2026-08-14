@@ -9,6 +9,7 @@
 import { getDbPool } from '../db.js';
 import { appLogger } from '../logging/logger.js';
 import type { DatasetProfile, DatasetProfileColumn } from '../types/dataset.js';
+import { quoteIdentifier } from '../utils/sqlIdentifier.js';
 
 import { insertRows } from './dataLoading/dataInsertion.js';
 import { parseDatasetRows, streamXlsxRows, streamXlsxSinglePass } from './dataLoading/fileParser.js';
@@ -73,7 +74,7 @@ export async function loadDatasetIntoPostgres(params: {
     await client.query('BEGIN');
 
     // Drop table if it exists (idempotent uploads)
-    await client.query(`DROP TABLE IF EXISTS "${tableName}"`);
+    await client.query(`DROP TABLE IF EXISTS ${quoteIdentifier(tableName)}`);
 
     // Create table with inferred schema
     const createTableSql = generateCreateTableSql(tableName, columns);
@@ -123,7 +124,7 @@ export async function streamLoadXlsxIntoPostgres(params: {
 
   try {
     await client.query('BEGIN');
-    await client.query(`DROP TABLE IF EXISTS "${tableName}"`);
+    await client.query(`DROP TABLE IF EXISTS ${quoteIdentifier(tableName)}`);
     await client.query(generateCreateTableSql(tableName, columns));
 
     let rowsLoaded = 0;
@@ -187,7 +188,7 @@ export async function singlePassXlsxLoad(params: {
           columns = profiling.columns;
 
           await client.query('BEGIN');
-          await client.query(`DROP TABLE IF EXISTS "${tableName}"`);
+          await client.query(`DROP TABLE IF EXISTS ${quoteIdentifier(tableName)}`);
           await client.query(generateCreateTableSql(tableName, columns));
         },
 
