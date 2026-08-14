@@ -1,3 +1,5 @@
+import { quoteIdentifier } from '../../utils/sqlIdentifier.js';
+
 import type { SchemaTableContext } from './types.js';
 
 const SIMPLE_IDENTIFIER_PATTERN = /^[a-z_][a-z0-9_]*$/;
@@ -6,9 +8,9 @@ export function requiresIdentifierQuoting(identifier: string): boolean {
   return !SIMPLE_IDENTIFIER_PATTERN.test(identifier);
 }
 
-export function quoteIdentifier(identifier: string): string {
-  return `"${identifier.replace(/"/g, '""')}"`;
-}
+// Re-exported so existing consumers (schemaContext, promptBuilders, datasetRows)
+// keep their import path while sharing one implementation with the loader path.
+export { quoteIdentifier };
 
 export function buildCaseSensitiveIdentifierLookup(tables: SchemaTableContext[]): Map<string, string> {
   const collisionMap = new Map<string, Set<string>>();

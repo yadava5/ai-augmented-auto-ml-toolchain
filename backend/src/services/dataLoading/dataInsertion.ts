@@ -6,6 +6,7 @@ import type { PoolClient } from 'pg';
 
 import { appLogger } from '../../logging/logger.js';
 import type { ColumnDataType, DatasetProfileColumn } from '../../types/dataset.js';
+import { quoteIdentifier } from '../../utils/sqlIdentifier.js';
 import {
   coerceBoolean,
   coerceDate,
@@ -130,7 +131,7 @@ export async function insertRows(
     });
 
     const insertSql = `
-      INSERT INTO "${tableName}" (${columnNames.map(n => `"${n}"`).join(', ')})
+      INSERT INTO ${quoteIdentifier(tableName)} (${columnNames.map(quoteIdentifier).join(', ')})
       VALUES ${placeholders.join(', ')}
     `;
 

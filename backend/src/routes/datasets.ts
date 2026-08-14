@@ -18,6 +18,7 @@ import * as notebookService from '../services/notebook/notebookService.js';
 import type { AuthRequest } from '../types/auth.js';
 import { getErrorMessage, sendNotFound } from '../utils/errors.js';
 import { getDatasetPath } from '../utils/pathUtils.js';
+import { quoteIdentifier } from '../utils/sqlIdentifier.js';
 
 import { updateColumnType } from './datasets/columnHandler.js';
 import { regenerateProjectNlSuggestionsSilently } from './datasets/nlSuggestions.js';
@@ -316,7 +317,7 @@ export function createDatasetUploadRouter(repository?: DatasetRepository) {
           const pool = getDbPool();
           const tableName = resolveDatasetTableName(dataset);
 
-          await pool.query(`DROP TABLE IF EXISTS "${tableName}"`);
+          await pool.query(`DROP TABLE IF EXISTS ${quoteIdentifier(tableName)}`);
         } catch (error) {
           appLogger.error(
             `[datasets] Failed to drop table:`,

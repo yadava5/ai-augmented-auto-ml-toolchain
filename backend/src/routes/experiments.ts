@@ -33,6 +33,25 @@ import { loadModelFile } from '../utils/modelFileLoader.js';
 import { setupNdjsonStream } from '../utils/ndjsonStream.js';
 
 
+// Node coerces any setTimeout delay above TIMEOUT_MAX (2^31-1 ms) to 1ms, which
+// would fire the tuning guard instantly while the container and Optuna study keep
+// running - nothing on this path stops the container. tuningService adds 60s of
+// headroom before building the timer, so the ceiling we enforce on the *user*
+// value has to leave room for that. This bound holds regardless of how
+// EXECUTION_TIMEOUT_MS is configured.
+const NODE_TIMEOUT_MAX_MS = 2_147_483_647;
+const TIMEOUT_MAX_SAFE_SECONDS = Math.floor(NODE_TIMEOUT_MAX_MS / 1000) - 60;
+
+// A tuning study runs inside the same sandbox as any other execution, so the
+// configured execution timeout is the natural ceiling. At the default
+// EXECUTION_TIMEOUT_MS of 600000 this is 600 - the same number the route has
+// always used as its fallback.
+const MAX_TUNING_TIMEOUT_SECONDS = Math.min(
+  Math.floor(env.executionTimeoutMs / 1000),
+  TIMEOUT_MAX_SAFE_SECONDS,
+);
+const DEFAULT_TUNING_TIMEOUT_SECONDS = Math.min(600, MAX_TUNING_TIMEOUT_SECONDS);
+
 const INSIGHT_SYSTEM_PROMPTS: Record<string, string> = {
   banner:
     'You are an ML experiment analyst. Summarize the state of the model experiments in 2-3 sentences. Focus on: best model performance, key differences between models, and one actionable suggestion. Only reference metric values that appear in the provided data. Do not invent statistics.',
@@ -243,6 +262,20 @@ export function createExperimentsRouter(): Router {
       res.status(400).json({ error: 'sampler must be "tpe" or "random"' });
       return;
     }
+    if (
+      timeoutSeconds !== undefined
+      && (
+        typeof timeoutSeconds !== 'number'
+        || !Number.isFinite(timeoutSeconds)
+        || timeoutSeconds < 1
+        || timeoutSeconds > MAX_TUNING_TIMEOUT_SECONDS
+      )
+    ) {
+      res.status(400).json({
+        error: `timeoutSeconds must be a number between 1 and ${MAX_TUNING_TIMEOUT_SECONDS}.`,
+      });
+      return;
+    }
 
     // Set NDJSON streaming headers
     setupNdjsonStream(res);
@@ -253,7 +286,7 @@ export function createExperimentsRouter(): Router {
         modelId,
         nTrials,
         metric,
-        timeoutSeconds ?? 600,
+        timeoutSeconds ?? DEFAULT_TUNING_TIMEOUT_SECONDS,
         res,
         { sampler: (sampler as 'tpe' | 'random') ?? 'tpe' },
       );
