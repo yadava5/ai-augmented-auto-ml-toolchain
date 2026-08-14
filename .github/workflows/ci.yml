@@ -31,6 +31,38 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Deliberately a separate job with no `npm ci`. The checker is dependency-free
+  # -- node builtins plus `git ls-files` and `git grep` -- so it can report in
+  # well under a minute instead of queueing behind three installs, a build and
+  # two suites. A check that is slow becomes a check somebody makes optional,
+  # and an optional check is how a number goes stale in the first place. It also
+  # means a PR that only edits README.md still gets a verdict.
+  readme-facts:
+    name: README numbers agree with the code
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      # A real checkout, not an archive: the script reads the tree through
+      # `git ls-files` and `git grep`, so it needs the repository, not the files.
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      # setup-node with no cache and no install. The script needs no packages,
+      # but it should run on the node this repo pins rather than on whatever the
+      # runner image happens to ship this month -- the gate reporting a
+      # different answer from `npm run readme:check` on a developer's machine
+      # would be the one failure mode nobody would think to look for.
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .node-version
+
+      # The same command the README documents, so CI and the reader cannot
+      # diverge. A zero-match claim site is a failure here, not a skip.
+      - name: Check every number the README asserts
+        run: npm run readme:check
+
   lint-build-test:
     runs-on: ubuntu-latest
     timeout-minutes: 30
