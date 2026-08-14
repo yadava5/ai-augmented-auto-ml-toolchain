@@ -11,7 +11,7 @@ import { COLORS, FONTS } from "../theme";
  * fallback — no build-time glob, no Playwright, no capture script.
  */
 export const ScreenshotPlaceholder: React.FC<{
-  /** Bare slug; `phase-03-preprocess` becomes `/screenshots/phase-03-preprocess.png`. */
+  /** Bare slug; `phase-03-preprocess` becomes `<base>screenshots/phase-03-preprocess.png`. */
   slug: string;
   /** Shown inside the dashed region until the file arrives. */
   description: string;
@@ -21,7 +21,11 @@ export const ScreenshotPlaceholder: React.FC<{
 }> = ({ slug, description, aspectRatio = 4 / 3, style }) => {
   const [loaded, setLoaded] = React.useState(false);
   const [failed, setFailed] = React.useState(false);
-  const src = `/screenshots/${slug}.png`;
+  // Vite injects `base` into HTML attributes and CSS url(), but NOT into
+  // root-absolute paths written as string literals in JS — this one would 404
+  // the moment the booklet is served from a sub-path, and the landing site
+  // serves it at /system-card/. BASE_URL already ends in "/".
+  const src = `${import.meta.env.BASE_URL}screenshots/${slug}.png`;
 
   return (
     <div
