@@ -216,11 +216,15 @@ describe('preview source guardrails', () => {
     const vercelConfig = readFileSync(path.resolve(landingRoot, '../../vercel.json'), 'utf8');
     expect(vercelConfig).toContain('"outputDirectory": "landing/dist"');
     expect(vercelConfig).toContain('"buildCommand": "npm run build:landing"');
-    // npm install, not npm ci: the lockfiles are not in sync with their
-    // manifests (npm ci dies on `Missing: source-map@0.6.1 from lock file`),
-    // which is what killed the 2026-07-24 production deploy. Asserted here so
-    // the command cannot quietly revert to the form that does not build.
-    expect(vercelConfig).toContain('"installCommand": "npm install --prefix frontend && npm install --prefix landing"');
+    // npm ci, not npm install. This asserted `npm install` while the lockfiles
+    // were out of sync with their manifests -- npm ci died on
+    // `Missing: source-map@0.6.1 from lock file`, which killed the 2026-07-24
+    // production deploy. That is no longer the tree: npm ci was re-run in all
+    // eight workspaces on linux under node 22/npm 10 and node 24/npm 11 and
+    // installed clean in every one, so the deploy goes back to the reproducible
+    // form. Asserted here so it cannot quietly drift again -- and this file now
+    // actually RUNS on CI, which it did not when the assertion was written.
+    expect(vercelConfig).toContain('"installCommand": "npm ci --prefix frontend && npm ci --prefix landing"');
     expect(vercelConfig).toContain('X-Frame-Options');
     expect(vercelConfig).toContain('SAMEORIGIN');
   });

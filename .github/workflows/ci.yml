@@ -27,6 +27,7 @@ jobs:
           node-version-file: .node-version
           cache: npm
           cache-dependency-path: |
+            package-lock.json
             backend/package-lock.json
             frontend/package-lock.json
             testing/package-lock.json
@@ -35,16 +36,32 @@ jobs:
             poster/package-lock.json
             booklet/package-lock.json
 
-      # npm install, NOT npm ci. The lockfiles are out of sync with their
-      # manifests -- npm ci exits with `Missing: source-map@0.6.1 from lock
-      # file`, which is what failed the 2026-07-24 production deploy and is
-      # why vercel.json installs the same way. Regenerating the lockfiles is
-      # the real repair; until that happens npm ci cannot run anywhere.
+      # npm ci, not npm install. This step read `npm install` with a comment
+      # saying npm ci could not run anywhere because the lockfiles were out of
+      # sync -- `Missing: source-map@0.6.1 from lock file`, the error that
+      # failed the 2026-07-24 production deploy. That was true of the tree it
+      # was written against. It is not true of this one: `npm ci` was run in
+      # all eight workspaces on linux under both node 22 / npm 10 (what
+      # .node-version pins, and what this job uses) and node 24 / npm 11, and
+      # every one of them installed clean. The workaround was costing
+      # reproducibility for nothing -- two installs on different days could
+      # resolve differently, which is the single property npm ci exists to
+      # guarantee -- so it goes, and vercel.json goes with it.
       - name: Install backend dependencies
-        run: npm --prefix backend install --no-audit --no-fund
+        run: npm --prefix backend ci --no-audit --no-fund
 
       - name: Install frontend dependencies
-        run: npm --prefix frontend install --no-audit --no-fund
+        run: npm --prefix frontend ci --no-audit --no-fund
+
+      # The landing workspace is what Vercel builds and serves at
+      # agentic-automl-platform.vercel.app, and until now this job never
+      # installed it, never built it and never ran its suite -- it appeared in
+      # `cache-dependency-path` and nowhere else. So `landing/src/tests/
+      # preview-components.test.tsx`, whose entire job is to assert the exact
+      # installCommand in vercel.json so it cannot silently revert, has never
+      # executed on any CI run. A guard that never runs is not a guard.
+      - name: Install landing dependencies
+        run: npm --prefix landing ci --no-audit --no-fund
 
       - name: Lint core app
         run: npm run lint
@@ -56,3 +73,13 @@ jobs:
         env:
           NODE_OPTIONS: --max-old-space-size=4096
         run: npm run build
+
+      # Build before test, and not for tidiness: twelve of the landing suite's
+      # ninety-five tests are marked "(post-build)" and read landing/dist. Run
+      # them without a build and they fail on a missing directory, which is how
+      # this ordering was established rather than assumed.
+      - name: Build landing
+        run: npm run build:landing
+
+      - name: Test landing
+        run: npm run test:landing
