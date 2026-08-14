@@ -23,7 +23,7 @@
   },
   "dependencies": {
     "@remotion/bundler": "4.0.448",
-    "@remotion/cli": "4.0.448",
+    "@remotion/cli": "4.0.509",
     "@remotion/fonts": "4.0.448",
     "@remotion/google-fonts": "4.0.448",
     "@remotion/media-utils": "4.0.448",
@@ -49,9 +49,9 @@
     "playwright": "^1.49.0",
     "prettier": "3.8.1",
     "prettier-plugin-organize-imports": "3.2.3",
-    "tsx": "^4.19.2",
+    "tsx": "^4.23.12",
     "typescript": "5.9.3",
-    "vite": "^6.3.0",
+    "vite": "^8.2.1",
     "vitest": "^3.2.4"
   }
 }
