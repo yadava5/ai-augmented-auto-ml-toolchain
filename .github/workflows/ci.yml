@@ -8,9 +8,27 @@ on:
     branches:
       - main
 
+# Superseding a PR's own older run is the point of cancel-in-progress: only
+# the tip of a branch under review is interesting. Superseding a run on `main`
+# is not, and it happened four times in twenty minutes on 2026-08-14 while a
+# short queue of PRs was merged:
+#
+#   e3d98e2e  cancelled     89ba59a5  cancelled
+#   3c772e98  cancelled     ee4d49b3  cancelled
+#
+# Four commits went onto the default branch with no completed CI run behind
+# them, and nothing anywhere says so — a cancelled run is not a red run, so
+# the branch reads as "no failures" while four of its commits were never
+# actually validated. That is the shape of a check that cannot fail: it did
+# not report a wrong answer, it reported none, and the absence looks like
+# consent.
+#
+# Grouping is unchanged; only the cancellation is now scoped to pull requests.
+# The cost is that a burst of merges queues a few runs instead of collapsing
+# them, which is exactly the cost worth paying on the branch that ships.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   lint-build-test:
