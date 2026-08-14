@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { Cpu, MessageSquare, Gauge, Brain, Flame, Rocket } from 'lucide-react';
+import { AlertTriangle, Cpu, MessageSquare, Gauge, Brain, Flame, Rocket } from 'lucide-react';
 
 import {
   Select,
@@ -12,6 +12,7 @@ import { SettingsSection } from '@/components/settings/SettingsSection';
 import { SettingsRow } from '@/components/settings/SettingsRow';
 import { useLlmModelStore } from '@/stores/llmModelStore';
 import { useLlmModelCatalog } from '@/hooks/useLlmModelCatalog';
+import { useLlmConfigured } from '@/hooks/useLlmConfigured';
 import { type ReasoningEffort } from '@/components/llm/modelOptions';
 import {
   getToolVisibilityPref,
@@ -41,6 +42,7 @@ export function AiModelsTab() {
   const { selectedModel, setSelectedModel, reasoningEffort, setReasoningEffort } =
     useLlmModelStore();
   const { allModelOptions, isLoading } = useLlmModelCatalog();
+  const { configured: llmConfigured } = useLlmConfigured();
 
   const toolVisibility = useSyncExternalStore(
     subscribeToolVisibilityPref,
@@ -49,6 +51,22 @@ export function AiModelsTab() {
 
   return (
     <div className="space-y-8">
+      {/* Only an explicit `false` — `null` means we don't know yet. */}
+      {llmConfigured === false ? (
+        <div className="flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/[0.04] p-4">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-yellow-600 dark:text-yellow-400" />
+          <div className="space-y-1 text-sm text-yellow-700 dark:text-yellow-300">
+            <p className="font-medium">No model API key is configured</p>
+            <p>
+              AI features are unavailable until a key is set. Add{' '}
+              <code className="rounded bg-muted px-1 py-0.5 text-xs">OPENAI_API_KEY</code> to{' '}
+              <code className="rounded bg-muted px-1 py-0.5 text-xs">backend/.env</code>, then
+              restart the backend.
+            </p>
+          </div>
+        </div>
+      ) : null}
+
       <SettingsSection icon={Cpu} title="Default Model">
         <SettingsRow
           label="Default model"
