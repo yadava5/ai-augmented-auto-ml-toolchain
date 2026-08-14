@@ -65,13 +65,26 @@ export async function parseDocument(buffer: Buffer, mimeType?: string, filename?
 
   if (mimeType && MIME_TEXT.has(mimeType)) {
     let text = buffer.toString('utf8');
+    let parseError: string | undefined;
     if (MARKUP_MIMES.has(mimeType)) {
+      // The ReDoS bound below truncates, and truncated text is silently
+      // shorter text: ingestDocument chunks and embeds whatever it is handed,
+      // with no cap of its own, so a dropped tail would just come back as a
+      // smaller chunkCount and nothing else. Report it on the response the
+      // route already returns rather than only to a log nobody reads.
+      const dropped = text.length - MAX_MARKUP_LENGTH;
+      if (dropped > 0) {
+        parseError =
+          `Markup exceeded the ${MAX_MARKUP_LENGTH}-character parse limit; `
+          + `${dropped} characters were dropped and are not searchable.`;
+      }
       text = stripMarkup(text);
     }
     return {
       text,
       mimeType,
-      type: mimeType.includes('markdown') ? 'markdown' : 'text'
+      type: mimeType.includes('markdown') ? 'markdown' : 'text',
+      parseError
     };
   }
 

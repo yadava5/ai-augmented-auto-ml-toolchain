@@ -242,4 +242,45 @@ describe('documentParser', () => {
       expect(elapsed).toBeLessThan(3000);
     });
   });
+
+  // The ReDoS bound truncates, and truncation is invisible by construction:
+  // ingestDocument chunks and embeds whatever text it is handed and caps
+  // nothing itself, so a dropped tail surfaces only as a smaller chunkCount.
+  // parseError is the field the upload route already returns to the client as
+  // parseWarning, so these assert the loss is *reported*, not just bounded.
+  describe('oversized markup reports the truncation', () => {
+    const MAX_MARKUP_LENGTH = 262_144;
+
+    it('sets parseError naming the number of characters dropped', async () => {
+      const overBy = 5_000;
+      const filler = 'a'.repeat(MAX_MARKUP_LENGTH + overBy - '<p></p>'.length);
+      const buffer = Buffer.from(`<p>${filler}</p>`, 'utf8');
+
+      const result = await parseDocument(buffer, 'text/html');
+
+      expect(result.parseError).toBeDefined();
+      expect(result.parseError).toContain(String(overBy));
+      expect(result.parseError).toContain('not searchable');
+    });
+
+    it('leaves parseError undefined for markup under the limit', async () => {
+      const buffer = Buffer.from('<p>Short enough to survive whole.</p>', 'utf8');
+
+      const result = await parseDocument(buffer, 'text/html');
+
+      expect(result.parseError).toBeUndefined();
+      expect(result.text).toBe('Short enough to survive whole.');
+    });
+
+    // Plain text and markdown never reach stripMarkup, so a large upload of
+    // either must keep every character and report nothing.
+    it('does not truncate or warn on non-markup text of the same size', async () => {
+      const body = 'b'.repeat(MAX_MARKUP_LENGTH + 5_000);
+
+      const result = await parseDocument(Buffer.from(body, 'utf8'), 'text/plain');
+
+      expect(result.parseError).toBeUndefined();
+      expect(result.text).toHaveLength(body.length);
+    });
+  });
 });
