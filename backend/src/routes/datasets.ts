@@ -141,14 +141,26 @@ export function createDatasetUploadRouter(repository?: DatasetRepository) {
         return;
       }
 
+      // The new name becomes a path segment under the dataset directory, so a
+      // separator or a traversal component would let it escape (getDatasetPath
+      // now refuses that at the sink, but a value that would be refused there
+      // must never be persisted either — otherwise the record points at a path
+      // that can never be read back). Reject it here for a clean 400 instead of
+      // a 500 from the thrown sink error, and to keep the stored name valid.
+      const nextFilename = filename.trim();
+      if (nextFilename.includes('/') || nextFilename.includes('\\') || nextFilename === '..' || nextFilename === '.') {
+        res.status(400).json({ error: 'filename must be a single path segment' });
+        return;
+      }
+
       const dataset = await requireDataset(req, res, datasetId);
       if (!dataset) return;
 
-      await renameDatasetFile(datasetId, dataset.filename, filename.trim());
+      await renameDatasetFile(datasetId, dataset.filename, nextFilename);
 
       const updated = await datasetRepository.update(datasetId, (current) => ({
         ...current,
-        filename: filename.trim()
+        filename: nextFilename
       }));
 
       if (!updated) { sendNotFound(res, 'Dataset'); return; }
