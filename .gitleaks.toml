@@ -24,6 +24,33 @@ useDefault = true
     # the position a key would. Allowlisted by value rather than by file so the
     # rule keeps working on that file if a real key is ever pasted into it.
     '''YOUR_API_KEY''',
+
+  ]
+
+  # scripts/system-card.manifest.json
+  #
+  # Triaged 2026-08-14, and the ONE path exclusion this file permits itself.
+  # `generic-api-key` fires on a single line of the system card's integrity
+  # manifest: `"poster/src/tokens.ts": "<64 hex>"`. The value is a sha256 of
+  # that source file and every line in the file is that same shape; the rule
+  # keys on the word "tokens" in the PATH sitting beside a long hex run, which
+  # is exactly where an API key would be. A design-token module is what it is
+  # named after.
+  #
+  # WHY A PATH HERE, when the header above refuses path exclusions on
+  # principle. That refusal is about directories where a real credential can
+  # LAND -- .tmp/, .playwright-mcp/ -- and one did. This file is different in
+  # kind: it is machine-written by scripts/system-card-manifest.mjs, whose
+  # only output is `{ relative path: sha256 }`, and scripts/check-system-card.mjs
+  # regenerates and compares it on every CI run. There is no edit that puts a
+  # secret in it and survives, so excluding it costs the scanner nothing.
+  #
+  # A value regex was tried first and does not work: gitleaks matches
+  # `regexes` against the extracted SECRET, not the line, so the only regex
+  # that would fire is `[0-9a-f]{64}` -- which would allowlist every 64-hex
+  # secret in the repository. Narrower by path than by value, here.
+  paths = [
+    '''^scripts/system-card\.manifest\.json$''',
   ]
 
   commits = [
