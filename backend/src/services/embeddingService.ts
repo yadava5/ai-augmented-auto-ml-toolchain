@@ -3,12 +3,19 @@ import OpenAI from 'openai';
 import { env } from '../config.js';
 import { appLogger } from '../logging/logger.js';
 
+import { assertLlmConfigured } from './llm/llmAvailability.js';
+
 const EMBEDDING_MODEL = 'text-embedding-3-small';
 export const EMBEDDING_DIMENSION = 1536;
 
 let openaiClient: OpenAI | null = null;
 
 function getOpenAI(): OpenAI {
+  // Embeddings are the one model call reached by a flow that does not look
+  // like an AI feature — uploading a document ingests and embeds it. Guard
+  // here too, or that upload fails as a bare 500.
+  assertLlmConfigured();
+
   if (!openaiClient) {
     openaiClient = new OpenAI({
       apiKey: env.openaiApiKey,

@@ -2,6 +2,7 @@ import express from 'express';
 import request from 'supertest';
 import { beforeEach, expect, it, vi } from 'vitest';
 
+import { env } from '../config.js';
 import { describeRouteSuite } from '../tests/describeRouteSuite.js';
 
 import { createWorkflowRouter } from './workflows.js';
@@ -124,6 +125,38 @@ describeRouteSuite('workflow routes answer turns', () => {
       projectId: 'project-1',
       metadata: {}
     });
+  });
+
+  it('refuses the turn with LLM_NOT_CONFIGURED when no model key is set', async () => {
+    // The guard sits ABOVE the res.setHeader calls that open the NDJSON
+    // stream. That placement is the point of this test: once headers are
+    // sent the global error handler bails on headersSent, so a guard placed
+    // any lower would surface as a stream that just stops rather than as a
+    // readable 503. Asserting a parsed JSON body proves the stream never
+    // opened.
+    const originalKey = env.openaiApiKey;
+    env.openaiApiKey = '';
+
+    try {
+      const response = await request(createTestApp())
+        .post('/api/workflows/turns/stream')
+        .send({
+          projectId: 'project-1',
+          phase: 'feature_engineering',
+          datasetId: 'dataset-1',
+          prompt: 'What should I validate before creating features?'
+        });
+
+      expect(response.status).toBe(503);
+      expect(response.body.error).toBe('LLM_NOT_CONFIGURED');
+      expect(response.body.message).toContain('OPENAI_API_KEY');
+
+      // Short-circuited before the provider, not after a failed call.
+      expect(llmStreamMock).not.toHaveBeenCalled();
+      expect(llmCompleteMock).not.toHaveBeenCalled();
+    } finally {
+      env.openaiApiKey = originalKey;
+    }
   });
 
   it('streams shared workflow events for a feature-engineering answer turn', async () => {

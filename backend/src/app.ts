@@ -39,6 +39,7 @@ import { createSettingsRouter } from './routes/settings.js';
 import { createWorkflowRouter } from './routes/workflows.js';
 import * as deploymentManager from './services/deploymentManager.js';
 import { resolveDeploymentPredictTarget, rewriteDeploymentPredictPath } from './services/deploymentPredictProxy.js';
+import { LlmNotConfiguredError } from './services/llm/llmAvailability.js';
 
 export function createApp() {
   const app = express();
@@ -268,6 +269,15 @@ export function createApp() {
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     appLogger.error({ err }, 'Unhandled request error');
     if (res.headersSent) return;
+
+    // A missing model key is a deployment state, not a server fault. Report
+    // it as such so the UI can say "add your key" instead of showing the
+    // generic 500 that every other unhandled error produces.
+    if (err instanceof LlmNotConfiguredError) {
+      res.status(err.status).json({ error: err.code, message: err.message });
+      return;
+    }
+
     res.status(500).json({ error: 'Internal Server Error' });
   });
 

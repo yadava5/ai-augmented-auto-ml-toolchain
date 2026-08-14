@@ -340,7 +340,7 @@ What is countable from committed files, and the command for each:
 
 | Quantity | Value | Source |
 | --- | --- | --- |
-| Backend test files | 130 | `git ls-files 'backend/**/*.test.ts' \| wc -l` |
+| Backend test files | 131 | `git ls-files 'backend/**/*.test.ts' \| wc -l` |
 | Frontend test files | 122 | `git ls-files 'frontend/**/*.test.ts' 'frontend/**/*.test.tsx' \| wc -l` |
 | Landing test files | 17 | `git ls-files 'landing/**/*.test.ts*' \| wc -l` |
 | Playwright specs | 11 | `git ls-files 'testing/tests/*.spec.ts' \| wc -l` |
@@ -393,7 +393,7 @@ The eval runner is also worth reading before trusting its output. NL→SQL scori
 
 - Node.js 22 (`.node-version`)
 - Docker, running — required for both the dev Postgres and every code execution
-- An OpenAI API key for any LLM-backed feature
+- An OpenAI API key for the agentic features. Everything else runs without one — see [Running without a model API key](#running-without-a-model-api-key)
 
 ### Quick start
 
@@ -426,6 +426,22 @@ EXECUTION_NETWORK=automl-sandbox   # `--internal`; `bridge` restores egress
 ```
 
 Note that `/api/auth` answers `503` and `/api/deployments` is not mounted at all when `DATABASE_URL` is unset.
+
+### Running without a model API key
+
+`OPENAI_API_KEY` is the one secret with no free substitute, so the app is built to run without it rather than to fail without it. **The public deployment has no key set**, which is why its AI surfaces are marked rather than merely broken.
+
+Without a key, everything that does not call a model still works: dataset upload and profiling, the data explorer, SQL execution and the query cache, charts, notebooks and cell execution, training runs, experiment tracking and deployment. What is gated is the agentic layer — the workflow chat, NL→SQL translation, NL suggestions, insight code generation, document embedding and RAG retrieval, and voice transcription.
+
+Those endpoints answer `503` with a stable code rather than a generic failure:
+
+```json
+{ "error": "LLM_NOT_CONFIGURED", "message": "No model API key is configured. Set OPENAI_API_KEY in backend/.env to enable the AI models. ..." }
+```
+
+The check is a single predicate, `isLlmConfigured()` in `backend/src/services/llm/llmAvailability.ts`, asserted at the two chokepoints every model call funnels through — `createLlmClient` and the embedding client — so a route added later cannot forget it. It fires before the network call: an unset key is knowable at startup, and paying a round-trip to be told so returns a `401` that means "your session expired" to every layer that reads it, which is a different and much worse thing than "this server has no key".
+
+`GET /api/health` reports the same state under `checks.llm.configured`, so the frontend marks the AI surfaces up front instead of waiting for a user to hit a failure. The check is deliberately **not** critical: a keyless deployment is a working deployment with the model features switched off, and reporting the whole service as down would be a lie.
 
 ### Scripts
 
@@ -542,7 +558,7 @@ git grep -c "seccomp"           -- backend deploy
 cat backend/src/services/documentSearchService.ts
 
 # Test-file and eval-fixture counts
-git ls-files 'backend/**/*.test.ts' | wc -l                                      # 130
+git ls-files 'backend/**/*.test.ts' | wc -l                                      # 131
 git ls-files 'frontend/**/*.test.ts' 'frontend/**/*.test.tsx' | wc -l            # 122
 git ls-files 'testing/tests/*.spec.ts' | wc -l                                   # 11
 python3 -c "import json;print(len(json.load(open('testing/fixtures/rag_eval.json'))))"   # 15

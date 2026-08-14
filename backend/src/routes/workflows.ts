@@ -4,6 +4,11 @@ import { z } from 'zod';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { verifyProjectOwnership } from '../middleware/resourceOwnership.js';
 import { getProjectRepository } from '../repositories/projectRepository.js';
+import {
+  isLlmConfigured,
+  LLM_NOT_CONFIGURED,
+  LLM_NOT_CONFIGURED_MESSAGE
+} from '../services/llm/llmAvailability.js';
 import { NdjsonResponseSink } from '../services/workflows/eventSink.js';
 import { getPhaseConfig } from '../services/workflows/phaseConfig.js';
 // Phase configs self-register when imported
@@ -76,6 +81,14 @@ export function createWorkflowRouter(): Router {
           });
         }
       }
+    }
+
+    // Must stay above the setHeader calls below. Once the NDJSON stream is
+    // open the global error handler can no longer answer (it bails on
+    // headersSent), so a missing key would surface as a stream that just
+    // stops. Checked here, the caller gets an ordinary JSON 503 it can read.
+    if (!isLlmConfigured()) {
+      return res.status(503).json({ error: LLM_NOT_CONFIGURED, message: LLM_NOT_CONFIGURED_MESSAGE });
     }
 
     res.setHeader('Content-Type', 'application/x-ndjson');

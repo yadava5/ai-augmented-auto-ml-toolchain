@@ -1,6 +1,7 @@
 import { env } from '../../config.js';
 import { appLogger } from '../../logging/logger.js';
 
+import { assertLlmConfigured } from './llmAvailability.js';
 import { getModelCatalogEntry, resolveCatalogModel, type LlmReasoningEffort } from './modelCatalog.js';
 import { OpenAiClient } from './providers/openaiClient.js';
 
@@ -72,6 +73,10 @@ export interface LlmClient {
 }
 
 export function createLlmClient(modelOverride?: string, timeoutMsOverride?: number): LlmClient {
+  // Before anything else: an unset key is a deployment state, not a request
+  // failure, and it is knowable without a round-trip to OpenAI.
+  assertLlmConfigured();
+
   const timeoutMs = timeoutMsOverride ?? env.llmTimeoutMs;
   const resolvedModel = resolveCatalogModel(modelOverride || env.llmModel);
 

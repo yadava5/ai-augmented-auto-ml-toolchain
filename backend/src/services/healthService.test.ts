@@ -18,7 +18,11 @@ const baseDeps = {
   dockerEnabled: true,
   pingDocker: async () => undefined,
   runtimePythonVersion: '3.11' as const,
-  checkRuntimeImage: async () => true
+  checkRuntimeImage: async () => true,
+  // Injected rather than left to the ambient environment: these are
+  // dependency-injected tests, and reading process.env here would make the
+  // result depend on whether a key happens to be exported.
+  isLlmConfigured: () => true
 };
 
 describe('getHealthReport', () => {
@@ -39,6 +43,23 @@ describe('getHealthReport', () => {
       available: true
     });
     expect(report.checks.memory.heapUsedBytes).toBe(150);
+  });
+
+  it('reports the model provider as degraded but not critical when no key is set', async () => {
+    const report = await getHealthReport({ ...baseDeps, isLlmConfigured: () => false });
+
+    expect(report.checks.llm).toMatchObject({
+      status: 'degraded',
+      configured: false,
+      critical: false
+    });
+    expect(report.checks.llm.message).toContain('OPENAI_API_KEY');
+
+    // The whole service must NOT read as down. A keyless deployment still
+    // serves uploads, profiling, SQL, notebooks and training; `critical: true`
+    // here would make /api/health answer 503 and take the deployment out of
+    // rotation behind any load balancer that reads it.
+    expect(report.status).toBe('degraded');
   });
 
   it('returns degraded when only Docker-related checks fail', async () => {
