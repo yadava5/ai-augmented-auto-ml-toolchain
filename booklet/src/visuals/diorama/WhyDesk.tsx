@@ -1,5 +1,5 @@
 import React from "react";
-import { COLORS } from "../../theme";
+import { COLORS, FONTS } from "../../theme";
 import { SceneFrame, ConstructionLine, iso } from "./primitives";
 
 /**
@@ -527,7 +527,7 @@ export const WhyDesk: React.FC = () => {
             <text
               x={csvTL.sx + 1.5}
               y={csvTL.sy + 3}
-              fontFamily="ui-monospace, monospace"
+              fontFamily={FONTS.MONO}
               fontSize={2.8}
               letterSpacing="0.4"
               fontWeight={600}

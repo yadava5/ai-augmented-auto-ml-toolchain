@@ -1,4 +1,5 @@
 import React from "react";
+import { FONTS } from "../../theme";
 
 /**
  * Reusable primitives for the 5 divider dioramas. Every primitive emits
@@ -281,7 +282,7 @@ export const ConstructionLine: React.FC<ConstructionLineProps> = ({
         <text
           x={x2 + labelOffset[0]}
           y={y2 + labelOffset[1]}
-          fontFamily="ui-monospace, monospace"
+          fontFamily={FONTS.MONO}
           fontSize={fontSize}
           letterSpacing="1"
           textAnchor="start"
@@ -364,7 +365,7 @@ export const SceneFrame: React.FC<SceneFrameProps> = ({
       <text
         x={10}
         y={16}
-        fontFamily="ui-monospace, monospace"
+        fontFamily={FONTS.MONO}
         fontSize={5}
         letterSpacing="1"
         fill="currentColor"
@@ -378,7 +379,7 @@ export const SceneFrame: React.FC<SceneFrameProps> = ({
       <text
         x={206}
         y={278}
-        fontFamily="ui-monospace, monospace"
+        fontFamily={FONTS.MONO}
         fontSize={5}
         letterSpacing="1"
         textAnchor="end"
