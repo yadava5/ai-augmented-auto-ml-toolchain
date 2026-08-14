@@ -9,6 +9,7 @@ import { Info } from 'lucide-react';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { useLlmConfigured } from '@/hooks/useLlmConfigured';
 import { useProjectStore } from '@/stores/projectStore';
 import {
   DEFAULT_ASSISTANT_MODEL,
@@ -21,6 +22,7 @@ import { ContextUsageIndicator } from './ContextUsageIndicator';
 import type { ModelConfig, ReasoningConfig, UsageConfig } from './LlmChatComposer';
 
 import {
+  AlertTriangle,
   Brain,
   Code2,
 
@@ -85,6 +87,7 @@ export function ComposerModelBar({
 
   const activeProject = useProjectStore((s) => s.getActiveProject());
   const projectIconColorClass = activeProject ? 'text-accent-text' : undefined;
+  const { configured: llmConfigured } = useLlmConfigured();
 
   const currentModelOption = useMemo(
     () => getModelOption(model, modelOptions),
@@ -194,6 +197,18 @@ export function ComposerModelBar({
           projectBgColorClass={activeProject ? 'bg-accent-bg' : undefined}
           projectColor={activeProject?.color === 'custom' ? activeProject.customColor : undefined}
         />
+      ) : null}
+
+      {/* Only an explicit `false` — `null` means we don't know yet. Deliberately
+          terse: this bar sits in a fixed-height, overflow-hidden, flex-nowrap
+          toolbar whose left group cannot shrink, so every pixel added here comes
+          off the send button. The Settings → AI & Models tab carries the full
+          explanation. */}
+      {llmConfigured === false ? (
+        <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[11px] text-yellow-700 dark:text-yellow-300">
+          <AlertTriangle className="h-3 w-3 shrink-0" />
+          No API key
+        </span>
       ) : null}
     </div>
   );

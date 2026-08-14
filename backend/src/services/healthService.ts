@@ -7,6 +7,7 @@ import { getErrorMessage } from '../utils/errors.js';
 
 import { getImageName, isImageAvailable } from './container/imageManager.js';
 import { execDocker } from './dockerUtils.js';
+import { isLlmConfigured, LLM_NOT_CONFIGURED_MESSAGE } from './llm/llmAvailability.js';
 
 const DEFAULT_CHECK_TIMEOUT_MS = 1_500;
 const DEFAULT_RUNTIME_PYTHON_VERSION: PythonVersion = '3.11';
@@ -38,6 +39,11 @@ export interface RuntimeImageHealthCheck extends BaseHealthCheck {
   message?: string;
 }
 
+export interface LlmHealthCheck extends BaseHealthCheck {
+  configured: boolean;
+  message?: string;
+}
+
 export interface MemoryHealthCheck extends BaseHealthCheck {
   rssBytes: number;
   heapTotalBytes: number;
@@ -55,6 +61,7 @@ export interface HealthReport {
     database: DatabaseHealthCheck;
     docker: DockerHealthCheck;
     runtimeImage: RuntimeImageHealthCheck;
+    llm: LlmHealthCheck;
     memory: MemoryHealthCheck;
   };
 }
@@ -70,6 +77,7 @@ interface HealthServiceDeps {
   pingDocker: () => Promise<void>;
   runtimePythonVersion: PythonVersion;
   checkRuntimeImage: (imageName: string) => Promise<boolean>;
+  isLlmConfigured: () => boolean;
 }
 
 const defaultDeps: HealthServiceDeps = {
@@ -86,7 +94,8 @@ const defaultDeps: HealthServiceDeps = {
     await execDocker(['info'], { timeout: DEFAULT_CHECK_TIMEOUT_MS });
   },
   runtimePythonVersion: DEFAULT_RUNTIME_PYTHON_VERSION,
-  checkRuntimeImage: isImageAvailable
+  checkRuntimeImage: isImageAvailable,
+  isLlmConfigured
 };
 
 async function withTimeout<T>(
@@ -236,6 +245,25 @@ async function getRuntimeImageCheck(
   }
 }
 
+/**
+ * `critical: false` on purpose. A deployment with no model key is a working
+ * deployment with the AI features switched off — uploads, profiling, SQL,
+ * charts, notebooks and training all still run. Marking it critical would
+ * make /api/health answer 503 and report the whole service as down, which
+ * would be a lie.
+ */
+function getLlmCheck(deps: HealthServiceDeps): LlmHealthCheck {
+  const configured = deps.isLlmConfigured();
+  return {
+    status: configured ? 'ok' : 'degraded',
+    critical: false,
+    configured,
+    message: configured
+      ? undefined
+      : LLM_NOT_CONFIGURED_MESSAGE
+  };
+}
+
 function getMemoryCheck(deps: HealthServiceDeps): MemoryHealthCheck {
   const usage = deps.getMemoryUsage();
   return {
@@ -273,12 +301,14 @@ export async function getHealthReport(
     getDockerCheck(deps)
   ]);
   const runtimeImage = await getRuntimeImageCheck(deps, docker);
+  const llm = getLlmCheck(deps);
   const memory = getMemoryCheck(deps);
 
   const checks = {
     database,
     docker,
     runtimeImage,
+    llm,
     memory
   };
 

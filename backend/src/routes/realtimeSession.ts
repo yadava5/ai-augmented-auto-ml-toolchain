@@ -4,14 +4,21 @@ import { env } from '../config.js';
 import { appLogger } from '../logging/logger.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { requireAuth } from '../middleware/auth.js';
+import {
+  isLlmConfigured,
+  LLM_NOT_CONFIGURED,
+  LLM_NOT_CONFIGURED_MESSAGE
+} from '../services/llm/llmAvailability.js';
 import type { AuthRequest } from '../types/auth.js';
 
 export function createRealtimeSessionRouter(): Router {
   const router = Router();
 
   router.post('/realtime/session', requireAuth, asyncHandler(async (_req: AuthRequest, res: Response) => {
-    if (!env.openaiApiKey) {
-      res.status(503).json({ error: 'OpenAI API key is not configured' });
+    if (!isLlmConfigured()) {
+      // Same stable code as every other model-backed route, so the frontend
+      // maps one case instead of recognising this route's own wording.
+      res.status(503).json({ error: LLM_NOT_CONFIGURED, message: LLM_NOT_CONFIGURED_MESSAGE });
       return;
     }
 

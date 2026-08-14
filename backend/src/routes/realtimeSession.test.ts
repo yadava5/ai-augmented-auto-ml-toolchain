@@ -102,7 +102,8 @@ describeRouteSuite('realtime session routes', () => {
         .set('Authorization', 'Bearer test-token');
 
       expect(response.status).toBe(503);
-      expect(response.body.error).toBe('OpenAI API key is not configured');
+      expect(response.body.error).toBe('LLM_NOT_CONFIGURED');
+      expect(response.body.message).toContain('OPENAI_API_KEY');
     });
 
     it('propagates upstream API failures', async () => {

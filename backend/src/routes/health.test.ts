@@ -33,6 +33,11 @@ const baseReport: HealthReport = {
       image: 'automl-python-runtime:3.11',
       available: true
     },
+    llm: {
+      status: 'ok',
+      critical: false,
+      configured: true
+    },
     memory: {
       status: 'ok',
       critical: false,

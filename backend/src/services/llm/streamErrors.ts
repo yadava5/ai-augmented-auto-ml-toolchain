@@ -6,7 +6,10 @@ import {
   RateLimitError
 } from 'openai';
 
+import { LLM_NOT_CONFIGURED, LlmNotConfiguredError } from './llmAvailability.js';
+
 export type LlmStreamErrorCode =
+  | 'LLM_NOT_CONFIGURED'
   | 'UPSTREAM_RATE_LIMITED'
   | 'UPSTREAM_MODEL_UNAVAILABLE'
   | 'UPSTREAM_AUTH_FAILED'
@@ -32,6 +35,20 @@ export interface NormalizedLlmStreamError {
  *      providers that bubble raw response bodies)
  */
 export function normalizeLlmStreamError(error: unknown): NormalizedLlmStreamError {
+  // 0. Our own "no key configured" error, which never reached the provider.
+  //    This must stay above every branch below: it is a plain Error, so it
+  //    matches none of the SDK `instanceof` checks and would otherwise fall
+  //    all the way through to the UPSTREAM_UNKNOWN fallback and be reported
+  //    as a provider fault we never contacted.
+  if (error instanceof LlmNotConfiguredError) {
+    return {
+      message: error.message,
+      code: LLM_NOT_CONFIGURED,
+      retryable: false,
+      status: error.status
+    };
+  }
+
   // 1. Detect via OpenAI SDK typed errors.
   if (error instanceof RateLimitError) {
     return {
@@ -45,8 +62,11 @@ export function normalizeLlmStreamError(error: unknown): NormalizedLlmStreamErro
 
   if (error instanceof AuthenticationError) {
     return {
+      // "Missing" is no longer reachable here — assertLlmConfigured catches
+      // an unset key before the request is built — so this is specifically a
+      // key that exists and the provider rejected.
       message:
-        'OpenAI authentication failed. The server API key is invalid or missing — contact your administrator.',
+        'OpenAI rejected the configured API key. Check that OPENAI_API_KEY in backend/.env is current and has access to the selected model.',
       code: 'UPSTREAM_AUTH_FAILED',
       retryable: false,
       status: error.status
