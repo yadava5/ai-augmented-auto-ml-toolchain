@@ -341,7 +341,7 @@ What is countable from committed files, and the command for each:
 | Quantity | Value | Source |
 | --- | --- | --- |
 | Backend test files | 131 | `git ls-files 'backend/**/*.test.ts' \| wc -l` |
-| Frontend test files | 122 | `git ls-files 'frontend/**/*.test.ts' 'frontend/**/*.test.tsx' \| wc -l` |
+| Frontend test files | 123 | `git ls-files 'frontend/**/*.test.ts' 'frontend/**/*.test.tsx' \| wc -l` |
 | Landing test files | 17 | `git ls-files 'landing/**/*.test.ts*' \| wc -l` |
 | Playwright specs | 11 | `git ls-files 'testing/tests/*.spec.ts' \| wc -l` |
 | NL→SQL eval cases **defined** | 3 | `testing/fixtures/nl2sql_eval.json` |
@@ -559,7 +559,7 @@ cat backend/src/services/documentSearchService.ts
 
 # Test-file and eval-fixture counts
 git ls-files 'backend/**/*.test.ts' | wc -l                                      # 131
-git ls-files 'frontend/**/*.test.ts' 'frontend/**/*.test.tsx' | wc -l            # 122
+git ls-files 'frontend/**/*.test.ts' 'frontend/**/*.test.tsx' | wc -l            # 123
 git ls-files 'testing/tests/*.spec.ts' | wc -l                                   # 11
 python3 -c "import json;print(len(json.load(open('testing/fixtures/rag_eval.json'))))"   # 15
 ```
