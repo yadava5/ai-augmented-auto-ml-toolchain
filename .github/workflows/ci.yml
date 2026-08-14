@@ -54,6 +54,14 @@ jobs:
             poster/package-lock.json
             booklet/package-lock.json
 
+      # Deliberately before the installs: this needs no dependencies at all
+      # (node fs + crypto), so it fails fast and costs nothing. It goes red
+      # when landing/public/system-card/ -- a build output committed so that no
+      # deploy can drop the page -- no longer matches the booklet sources it
+      # was built from, which is otherwise invisible to lint, test and build.
+      - name: Check committed system card is current
+        run: npm run check:system-card
+
       # npm ci, not npm install. This step read `npm install` with a comment
       # saying npm ci could not run anywhere because the lockfiles were out of
       # sync -- `Missing: source-map@0.6.1 from lock file`, the error that

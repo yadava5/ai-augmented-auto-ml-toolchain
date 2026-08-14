@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --port 5181",
     "build": "tsc --noEmit && vite build",
+    "build:system-card": "BOOKLET_BASE=/system-card/ npm run build",
     "preview": "vite preview --port 5181",
     "pdf": "node scripts/validate-parity.mjs && node scripts/export-pdf.mjs"
   },

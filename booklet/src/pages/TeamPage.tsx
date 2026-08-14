@@ -10,6 +10,13 @@ type Person = {
   owned: readonly string[];
 };
 
+// Vite injects `base` into HTML attributes and CSS url(), but NOT into
+// root-absolute paths written as string literals in JS — those would 404 the
+// moment the booklet is served from a sub-path, and the landing site serves it
+// at /system-card/. BASE_URL already ends in "/", so the paths below must not
+// start with one.
+const BASE = import.meta.env.BASE_URL;
+
 /** Page 26 — team, advisors, acknowledgements. */
 export const TeamPage: React.FC<{
   parity: "recto" | "verso";
@@ -37,14 +44,14 @@ export const TeamPage: React.FC<{
       <PersonCard
         person={TEAM_PAGE.shree}
         accent={COLORS.MIAMI_RED}
-        headshot="/team/shree.jpeg"
-        employer={{ mark: "/branding/ebc.webp", label: "Employer · EBC" }}
+        headshot={`${BASE}team/shree.jpeg`}
+        employer={{ mark: `${BASE}branding/ebc.webp`, label: "Employer · EBC" }}
       />
       <PersonCard
         person={TEAM_PAGE.ayush}
         accent={SECTION["05_BUILD"]}
-        headshot="/team/ayush.jpeg"
-        employer={{ mark: "/branding/miami-m.svg", label: "Miami University · CS" }}
+        headshot={`${BASE}team/ayush.jpeg`}
+        employer={{ mark: `${BASE}branding/miami-m.svg`, label: "Miami University · CS" }}
       />
     </div>
 
@@ -69,7 +76,7 @@ export const TeamPage: React.FC<{
           key={a.name}
           name={a.name}
           role={a.role}
-          headshot={i === 0 ? "/team/samer.png" : "/team/stahr.png"}
+          headshot={i === 0 ? `${BASE}team/samer.png` : `${BASE}team/stahr.png`}
         />
       ))}
     </div>

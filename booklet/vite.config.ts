@@ -6,8 +6,13 @@ import react from "@vitejs/plugin-react";
 // headless PDF export see identical URLs, and publicDir copies public/fonts,
 // public/art (Gemini SVGs), public/screenshots (user-supplied PNGs) verbatim
 // into dist/.
+//
+// BOOKLET_BASE lets the same source build for a sub-path host: the landing
+// site serves this bundle at /system-card/ (see `npm run booklet:system-card`
+// at the repo root). Default stays "/" so `booklet:build`, `booklet:dev` and
+// the PDF export are unchanged.
 export default defineConfig({
-  base: "/",
+  base: process.env.BOOKLET_BASE ?? "/",
   plugins: [react()],
   publicDir: "public",
   build: {
