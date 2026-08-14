@@ -1,5 +1,5 @@
 import React from "react";
-import { COLORS } from "../../theme";
+import { COLORS, FONTS } from "../../theme";
 import { SceneFrame, iso } from "./primitives";
 
 /**
@@ -263,7 +263,7 @@ export const ProofPodium: React.FC = () => {
               x={(c.a.sx + c.b.sx) / 2}
               y={c.a.sy + 3}
               textAnchor="middle"
-              fontFamily="ui-monospace, monospace"
+              fontFamily={FONTS.MONO}
               fontSize={3.4}
               letterSpacing="0.8"
               fontWeight={600}
@@ -400,11 +400,11 @@ export const ProofPodium: React.FC = () => {
         return (
           <g>
             <circle cx={m2.sx} cy={m2.sy} r={3.2} fill="currentColor" fillOpacity={0.45} stroke="currentColor" strokeWidth={0.7} />
-            <text x={m2.sx} y={m2.sy + 1.4} textAnchor="middle" fontFamily="ui-monospace, monospace" fontSize={3} fontWeight={600} fill="currentColor">
+            <text x={m2.sx} y={m2.sy + 1.4} textAnchor="middle" fontFamily={FONTS.MONO} fontSize={3} fontWeight={600} fill="currentColor">
               B
             </text>
             <circle cx={m3.sx} cy={m3.sy} r={2.8} fill="currentColor" fillOpacity={0.35} stroke="currentColor" strokeWidth={0.6} />
-            <text x={m3.sx} y={m3.sy + 1.2} textAnchor="middle" fontFamily="ui-monospace, monospace" fontSize={2.8} fontWeight={600} fill="currentColor">
+            <text x={m3.sx} y={m3.sy + 1.2} textAnchor="middle" fontFamily={FONTS.MONO} fontSize={2.8} fontWeight={600} fill="currentColor">
               C
             </text>
           </g>

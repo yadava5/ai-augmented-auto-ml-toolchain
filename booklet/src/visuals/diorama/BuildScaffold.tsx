@@ -1,5 +1,5 @@
 import React from "react";
-import { COLORS } from "../../theme";
+import { COLORS, FONTS } from "../../theme";
 import { SceneFrame, ConstructionLine, iso } from "./primitives";
 
 /**
@@ -125,7 +125,7 @@ export const BuildScaffold: React.FC = () => {
               x={(a.sx + c.sx) / 2}
               y={(a.sy + c.sy) / 2 + 1.8}
               textAnchor="middle"
-              fontFamily="ui-monospace, monospace"
+              fontFamily={FONTS.MONO}
               fontSize={4.8}
               fontWeight={700}
               letterSpacing="1"
@@ -173,7 +173,7 @@ export const BuildScaffold: React.FC = () => {
               x={(a.sx + c.sx) / 2}
               y={(a.sy + c.sy) / 2 + 1.8}
               textAnchor="middle"
-              fontFamily="ui-monospace, monospace"
+              fontFamily={FONTS.MONO}
               fontSize={4.8}
               fontWeight={700}
               letterSpacing="1"
@@ -260,7 +260,7 @@ export const BuildScaffold: React.FC = () => {
                     x={(a.sx + c.sx) / 2}
                     y={(a.sy + c.sy) / 2 + 1.8}
                     textAnchor="middle"
-                    fontFamily="ui-monospace, monospace"
+                    fontFamily={FONTS.MONO}
                     fontSize={4.8}
                     fontWeight={700}
                     letterSpacing="1"
@@ -297,7 +297,7 @@ export const BuildScaffold: React.FC = () => {
               x={(a.sx + c.sx) / 2}
               y={(a.sy + c.sy) / 2 + 1.8}
               textAnchor="middle"
-              fontFamily="ui-monospace, monospace"
+              fontFamily={FONTS.MONO}
               fontSize={4.8}
               fontWeight={700}
               letterSpacing="1"
@@ -316,7 +316,7 @@ export const BuildScaffold: React.FC = () => {
             x={p.sx}
             y={p.sy}
             textAnchor="middle"
-            fontFamily="ui-monospace, monospace"
+            fontFamily={FONTS.MONO}
             fontSize={3.6}
             letterSpacing="0.8"
             fontWeight={600}

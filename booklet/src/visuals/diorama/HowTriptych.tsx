@@ -1,5 +1,5 @@
 import React from "react";
-import { COLORS } from "../../theme";
+import { COLORS, FONTS } from "../../theme";
 import { SceneFrame, FlowChannel, Marker, iso } from "./primitives";
 
 /**
@@ -103,7 +103,7 @@ export const HowTriptych: React.FC = () => {
           <text
             x={p.sx}
             y={p.sy}
-            fontFamily="ui-monospace, monospace"
+            fontFamily={FONTS.MONO}
             fontSize={4.4}
             letterSpacing="1"
             fontWeight={600}
@@ -202,7 +202,7 @@ export const HowTriptych: React.FC = () => {
           <text
             x={p.sx}
             y={p.sy}
-            fontFamily="ui-monospace, monospace"
+            fontFamily={FONTS.MONO}
             fontSize={4.4}
             letterSpacing="1"
             fontWeight={600}
@@ -289,7 +289,7 @@ export const HowTriptych: React.FC = () => {
           <text
             x={p.sx}
             y={p.sy}
-            fontFamily="ui-monospace, monospace"
+            fontFamily={FONTS.MONO}
             fontSize={4.2}
             letterSpacing="1"
             fill="currentColor"

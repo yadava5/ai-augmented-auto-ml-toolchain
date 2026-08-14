@@ -1,5 +1,5 @@
 import React from "react";
-import { COLORS } from "../../theme";
+import { COLORS, FONTS } from "../../theme";
 import { SceneFrame, ConstructionLine, iso } from "./primitives";
 
 /**
@@ -75,7 +75,7 @@ export const InsideCutaway: React.FC = () => {
       <text
         x={30}
         y={48}
-        fontFamily="ui-monospace, monospace"
+        fontFamily={FONTS.MONO}
         fontSize={4.5}
         letterSpacing="1"
         fill="currentColor"
@@ -345,7 +345,7 @@ export const InsideCutaway: React.FC = () => {
             <text
               x={c.bl.sx + 4}
               y={c.bl.sy - 1.5}
-              fontFamily="ui-monospace, monospace"
+              fontFamily={FONTS.MONO}
               fontSize={4.4}
               letterSpacing="1.2"
               fill="currentColor"
@@ -419,7 +419,7 @@ export const InsideCutaway: React.FC = () => {
               <text
                 x={docker.sx - 6}
                 y={docker.sy + 8}
-                fontFamily="ui-monospace, monospace"
+                fontFamily={FONTS.MONO}
                 fontSize={3.2}
                 letterSpacing="0.8"
                 fill="currentColor"
@@ -468,7 +468,7 @@ export const InsideCutaway: React.FC = () => {
               <text
                 x={python.sx}
                 y={python.sy + 7}
-                fontFamily="ui-monospace, monospace"
+                fontFamily={FONTS.MONO}
                 fontSize={3.2}
                 letterSpacing="0.8"
                 fill="currentColor"
@@ -512,7 +512,7 @@ export const InsideCutaway: React.FC = () => {
             <text
               x={lblX}
               y={c.tr.sy + 2}
-              fontFamily="ui-monospace, monospace"
+              fontFamily={FONTS.MONO}
               fontSize={5.5}
               fontWeight={700}
               letterSpacing="1"
@@ -524,7 +524,7 @@ export const InsideCutaway: React.FC = () => {
             <text
               x={lblX}
               y={c.tr.sy + 8}
-              fontFamily="ui-monospace, monospace"
+              fontFamily={FONTS.MONO}
               fontSize={3.6}
               letterSpacing="0.8"
               fill="currentColor"
