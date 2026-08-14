@@ -35,7 +35,15 @@ export function buildDockerRunArgs(params: {
         '--name', containerName,
         '--memory', `${env.executionMaxMemoryMb}m`,
         '--cpus', `${env.executionMaxCpuPercent / 100}`,
-        '--network', env.executionNetwork, // network policy (default: none — fully isolated)
+        // Network policy. The default is `automl-sandbox`, NOT `none` — this
+        // comment used to say `none` and was wrong. `automl-sandbox` is created
+        // by networkManager.ts with `--internal`, which blocks outbound
+        // internet and SSRF while still allowing the host to reach mapped
+        // ports; `none` would additionally break the Kernel Gateway. Beta
+        // deploys override this to `bridge` so `install_package` can reach
+        // PyPI, which is a real and deliberate reduction in isolation — see
+        // backend/.env.beta.example.
+        '--network', env.executionNetwork,
         '--add-host', 'host.docker.internal:0.0.0.0', // block SSRF to host even if network is overridden
         '--read-only', // read-only root fs
         '--tmpfs', `/tmp:rw,nosuid,size=${env.executionTmpfsMb}m,mode=1777`, // writable tmp
