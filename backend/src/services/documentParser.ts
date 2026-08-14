@@ -84,12 +84,41 @@ export async function parseDocument(buffer: Buffer, mimeType?: string, filename?
   };
 }
 
+/**
+ * Upper bound on the markup we will run the tag regexes over.
+ *
+ * `[^>]` matches `<`, so on input full of unclosed `<` every `<` is a match
+ * start whose scan runs to end of input - quadratic. Uploads are capped at
+ * 25MB (routes/documents.ts), which measured at ~36 hours of blocked event
+ * loop. The bounded quantifiers below cap the per-position scan and this caps
+ * the number of positions; together they hold the worst case to ~320ms.
+ * Only the four MARKUP_MIMES reach this, so plain text, markdown, JSON, PDF
+ * and DOCX are unaffected.
+ */
+const MAX_MARKUP_LENGTH = 262_144;
+
+/**
+ * Longest attribute run we will scan inside a tag before giving up on it.
+ * Open tags in real markup are far shorter; the trade-off is that a tag
+ * carrying an inline data URI longer than this is no longer stripped and its
+ * text survives into the extracted output.
+ */
+const MAX_SCRIPT_TAG_ATTRIBUTES = 2000;
+const MAX_TAG_ATTRIBUTES = 512;
+
 /** Strip HTML/XML tags, decode common entities, and collapse whitespace */
 function stripMarkup(html: string): string {
+  if (html.length > MAX_MARKUP_LENGTH) {
+    appLogger.warn(
+      `[documentParser] Markup input truncated from ${html.length} to ${MAX_MARKUP_LENGTH} chars before tag stripping`
+    );
+  }
+
   return html
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
+    .slice(0, MAX_MARKUP_LENGTH)
+    .replace(new RegExp(`<script[^>]{0,${MAX_SCRIPT_TAG_ATTRIBUTES}}>[\\s\\S]*?<\\/script>`, 'gi'), ' ')
+    .replace(new RegExp(`<style[^>]{0,${MAX_SCRIPT_TAG_ATTRIBUTES}}>[\\s\\S]*?<\\/style>`, 'gi'), ' ')
+    .replace(new RegExp(`<[^>]{1,${MAX_TAG_ATTRIBUTES}}>`, 'g'), ' ')
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')

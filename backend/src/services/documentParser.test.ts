@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-import { parseDocument } from './documentParser.js';
+import { parseDocument, stripMarkup } from './documentParser.js';
 
 const { extractRawTextMock } = vi.hoisted(() => ({
   extractRawTextMock: vi.fn()
@@ -200,6 +200,46 @@ describe('documentParser', () => {
 
         expect(result.text).toBe(text);
       });
+    });
+  });
+
+  describe('stripMarkup', () => {
+    it('still strips script, style and ordinary tags and decodes entities', () => {
+      const html = '<html><head><style type="text/css">.a{color:red}</style>'
+        + '<script src="x.js" defer async>var a = 1 < 2;</script></head>'
+        + '<body><p class="x">Hello &amp; &lt;world&gt;</p><!-- note --></body></html>';
+
+      expect(stripMarkup(html)).toBe('Hello & <world>');
+    });
+
+    it('still strips tags with long-but-realistic attribute lists', () => {
+      const attrs = Array.from({ length: 12 }, (_, i) => `data-attr-${i}="value-${i}"`).join(' ');
+
+      expect(stripMarkup(`<div ${attrs}>Body</div>`)).toBe('Body');
+    });
+
+    // `[^>]` matches `<`, so every `<` in a run of unclosed tags is a match start
+    // whose scan runs to end of input - quadratic in the input length. Unfixed,
+    // these shapes measured 83s-308s at only 448KB, so 4MB is hours of blocked
+    // event loop. Bounded quantifiers plus MAX_MARKUP_LENGTH hold this to tens of
+    // milliseconds; past the cap, cost stops growing with input size at all.
+    //
+    // The gate sits ~1000x away from the defect in both directions, so the bound
+    // is deliberately loose rather than pinned to the measured value - a tighter
+    // one would buy no detection power and would flake on loaded CI.
+    it.each([
+      ['unclosed script tags', '<script'],
+      ['bare open angles', '<'],
+      ['unclosed style tags', '<style'],
+      ['two-char open tags', '<a'],
+    ])('completes quickly on 4MB of %s', (_label, unit) => {
+      const input = unit.repeat(Math.floor((4 * 1024 * 1024) / unit.length));
+
+      const started = Date.now();
+      stripMarkup(input);
+      const elapsed = Date.now() - started;
+
+      expect(elapsed).toBeLessThan(3000);
     });
   });
 });
