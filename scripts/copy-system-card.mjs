@@ -1,0 +1,50 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// The landing nav links to /system-card (Nav.astro, desktop + mobile). Vercel
+// builds landing/dist, and Astro copies landing/public verbatim into it, so the
+// built booklet has to sit in landing/public/system-card/ and be committed.
+// Hosting the page by hand is exactly what let the 12 August landing rebuild
+// drop it, leaving the nav pointing at a 404.
+//
+// Run via `npm run booklet:system-card`, which builds booklet/dist with
+// BOOKLET_BASE=/system-card/ first.
+const sourceDir = fileURLToPath(new URL('../booklet/dist/', import.meta.url));
+const targetDir = fileURLToPath(new URL('../landing/public/system-card/', import.meta.url));
+
+const entryPoint = path.join(sourceDir, 'index.html');
+if (!fs.existsSync(entryPoint)) {
+  console.error(
+    `No booklet build at ${entryPoint}.\n` +
+      'Run `npm run booklet:system-card` (it builds first) rather than this script alone.',
+  );
+  process.exit(1);
+}
+
+// Wipe first: Vite content-hashes asset filenames, so copying over a previous
+// run would leave orphaned assets behind forever.
+fs.rmSync(targetDir, { recursive: true, force: true });
+fs.cpSync(sourceDir, targetDir, { recursive: true });
+
+// Normalise modes. These files are committed, so a stray 0755 would land in
+// git as an exec bit. It also repairs a Docker Desktop quirk: gRPC-FUSE records
+// mode 0200 for files fs.cpSync creates through a bind mount (macOS reports
+// 0644, the container disagrees), which makes the next Astro build die with
+// EACCES while copying public/ into dist/.
+const entries = fs.readdirSync(targetDir, { recursive: true, withFileTypes: true });
+fs.chmodSync(targetDir, 0o755);
+for (const entry of entries) {
+  fs.chmodSync(path.join(entry.parentPath, entry.name), entry.isDirectory() ? 0o755 : 0o644);
+}
+
+const copied = entries.filter((entry) => entry.isFile());
+const bytes = copied.reduce(
+  (total, entry) => total + fs.statSync(path.join(entry.parentPath, entry.name)).size,
+  0,
+);
+
+console.log(
+  `Copied ${copied.length} files (${(bytes / 1024 / 1024).toFixed(2)} MB) ` +
+    'into landing/public/system-card/',
+);

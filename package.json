@@ -14,6 +14,7 @@
     "booklet:dev": "npm --prefix booklet run dev",
     "booklet:build": "npm --prefix booklet run build",
     "booklet:pdf": "npm --prefix booklet run pdf",
+    "booklet:system-card": "npm --prefix booklet run build:system-card && node scripts/copy-system-card.mjs",
     "dev": "node scripts/dev/run.mjs",
     "dev:ui": "npm --prefix frontend run dev:ui",
     "dev:backend": "npm --prefix backend run dev",
