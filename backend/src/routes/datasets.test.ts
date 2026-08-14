@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import express from 'express';
@@ -379,6 +379,73 @@ describeRouteSuite('dataset routes', () => {
       expect(response.headers['content-disposition']).toContain('download.csv');
       expect(response.text).toContain('id,name');
       expect(response.text).toContain('Ada');
+    });
+  });
+
+  describe('path traversal via a poisoned filename', () => {
+    // Regression for a confirmed arbitrary-file-read: PATCH /datasets/:id
+    // accepted any string as the new filename, that filename is later joined
+    // under the dataset dir and streamed by /download, and getDatasetPath had
+    // no containment check — so `../../…/etc/passwd` escaped and was served.
+
+    it('rejects a traversal filename at PATCH with a 400 and does not persist it', async () => {
+      const dataset = createMockDataset({ filename: 'safe.csv' });
+      repository.addDataset(dataset);
+      const app = createTestApp(repository);
+
+      const response = await request(app)
+        .patch(`/api/datasets/${dataset.datasetId}`)
+        .send({ filename: '../../../../../../../../etc/passwd' });
+
+      expect(response.status).toBe(400);
+      // The stored record must be untouched — a persisted poison filename is
+      // exploitable on the next /download even if the rename itself failed.
+      expect((await repository.getById(dataset.datasetId))?.filename).toBe('safe.csv');
+    });
+
+    it('still allows a legitimate filename that merely contains dots', async () => {
+      // The guard checks the resolved path, not the presence of "..", so a real
+      // name like this must pass. This is the direction a naive includes('..')
+      // rule would wrongly reject.
+      const dataset = createMockDataset({ filename: 'safe.csv' });
+      repository.addDataset(dataset);
+      storeDatasetFile(dataset, 'id\n1\n');
+      const app = createTestApp(repository);
+
+      const response = await request(app)
+        .patch(`/api/datasets/${dataset.datasetId}`)
+        .send({ filename: 'report..final.csv' });
+
+      expect(response.status).toBe(200);
+      expect((await repository.getById(dataset.datasetId))?.filename).toBe('report..final.csv');
+    });
+
+    it('cannot stream a file outside the dataset directory even if the record is poisoned', async () => {
+      // Belt-and-suspenders: simulate an already-poisoned record (bypassing the
+      // PATCH guard, as a pre-existing bad row would) and prove the sink itself
+      // refuses to read outside its base. The canary lives above the storage
+      // dir precisely so that reading it requires an escape.
+      mkdirSync(env.datasetStorageDir, { recursive: true });
+      const secret = join(env.datasetStorageDir, '..', 'traversal-canary-secret.txt');
+      writeFileSync(secret, 'CANARY-must-not-be-served', 'utf8');
+
+      try {
+        // Two `..` segments: the first cancels the datasetId directory (landing
+        // back in the storage dir), the second escapes to its parent where the
+        // canary lives. `../foo` alone only reaches the storage dir itself and
+        // would not exercise a real escape — that mistake makes the test pass
+        // against the *vulnerable* code, so it is load-bearing.
+        const dataset = createMockDataset({ filename: '../../traversal-canary-secret.txt' });
+        repository.addDataset(dataset);
+        const app = createTestApp(repository);
+
+        const response = await request(app).get(`/api/datasets/${dataset.datasetId}/download`);
+
+        expect(response.status).not.toBe(200);
+        expect(response.text).not.toContain('CANARY-must-not-be-served');
+      } finally {
+        rmSync(secret, { force: true });
+      }
     });
   });
 
