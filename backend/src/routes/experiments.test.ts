@@ -273,6 +273,76 @@ describeRouteSuite('experiments routes', () => {
     expect(response.body.error).toContain('nTrials');
   });
 
+  // timeoutSeconds was the only field in this body with no runtime check. It
+  // flows to setTimeout(); nothing on the path stops the container, so a huge
+  // value pins one for weeks and a value above Node's TIMEOUT_MAX (2^31-1 ms)
+  // is coerced to 1ms, firing the guard instantly while the study keeps running.
+  it.each([
+    ['below zero', -1],
+    ['zero', 0],
+    ['over Node TIMEOUT_MAX', 2_147_483_648],
+    ['a year in seconds', 31_536_000],
+    ['not a number', 'forever'],
+    ['NaN', Number.NaN],
+    ['Infinity', Number.POSITIVE_INFINITY],
+  ])('POST /experiments/:projectId/tune returns 400 when timeoutSeconds is %s', async (_label, timeoutSeconds) => {
+    // Let the study "succeed" so that an unvalidated value produces a 200 we can
+    // assert against, rather than an open NDJSON stream that fails by timeout.
+    mockRunTuningStudy.mockImplementation(async (...args: unknown[]) => {
+      (args[5] as { end: () => void }).end();
+    });
+
+    const app = createTestApp();
+    const response = await request(app).post('/api/experiments/project-1/tune').send({
+      modelId: 'model-1',
+      nTrials: 10,
+      metric: 'accuracy',
+      timeoutSeconds,
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toContain('timeoutSeconds');
+    expect(mockRunTuningStudy).not.toHaveBeenCalled();
+  });
+
+  it('POST /experiments/:projectId/tune passes a normal timeoutSeconds through unchanged', async () => {
+    mockRunTuningStudy.mockImplementation(async (...args: unknown[]) => {
+      (args[5] as { end: () => void }).end();
+    });
+
+    const app = createTestApp();
+    const response = await request(app).post('/api/experiments/project-1/tune').send({
+      modelId: 'model-1',
+      nTrials: 10,
+      metric: 'accuracy',
+      timeoutSeconds: 120,
+    });
+
+    expect(response.status).toBe(200);
+    expect(mockRunTuningStudy).toHaveBeenCalledTimes(1);
+    expect(mockRunTuningStudy.mock.calls[0][4]).toBe(120);
+  });
+
+  it('POST /experiments/:projectId/tune accepts the upper bound and defaults to 600', async () => {
+    mockRunTuningStudy.mockImplementation(async (...args: unknown[]) => {
+      (args[5] as { end: () => void }).end();
+    });
+
+    const app = createTestApp();
+
+    const atBound = await request(app).post('/api/experiments/project-1/tune').send({
+      modelId: 'model-1', nTrials: 10, metric: 'accuracy', timeoutSeconds: 600,
+    });
+    expect(atBound.status).toBe(200);
+    expect(mockRunTuningStudy.mock.calls[0][4]).toBe(600);
+
+    const omitted = await request(app).post('/api/experiments/project-1/tune').send({
+      modelId: 'model-1', nTrials: 10, metric: 'accuracy',
+    });
+    expect(omitted.status).toBe(200);
+    expect(mockRunTuningStudy.mock.calls[1][4]).toBe(600);
+  });
+
   it('POST /experiments/:projectId/compare returns 400 without modelIds', async () => {
     const app = createTestApp();
     const response = await request(app).post('/api/experiments/project-1/compare').send({});
