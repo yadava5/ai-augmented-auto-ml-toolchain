@@ -50,7 +50,16 @@ export type PageSpec =
       chapterNum: string;
       chapterTitle: string;
       subtitle: string;
-      artSlot: string;
+      /**
+       * Commissioned divider artwork, base-relative (e.g. `art/div-01-why.svg`,
+       * resolved against import.meta.env.BASE_URL). Absent on every chapter
+       * today: no such file has ever existed in booklet/public, and the
+       * programmatic diorama in DividerPage IS the artwork. It previously held
+       * root-absolute `/art/...` literals, which Vite does not base-rewrite, so
+       * each one 404'd under /system-card/ and the fallback silently covered
+       * for it. Set this only when the file is actually committed.
+       */
+      artSlot?: string;
       chapterIndex: number;
       chapterTotal: number;
     }
@@ -90,7 +99,6 @@ export const PAGES: readonly PageSpec[] = [
     num: 4, kind: "divider", parity: "verso", sectionKey: "01_WHY",
     chapterNum: "01", chapterTitle: "WHY",
     subtitle: "data science is mostly not data science",
-    artSlot: "/art/div-01-why.svg",
     chapterIndex: 1, chapterTotal: 5,
   },
   { num: 5,  kind: "body", parity: "recto", sectionKey: "01_WHY", body: "eighty-percent" },
@@ -101,7 +109,6 @@ export const PAGES: readonly PageSpec[] = [
     num: 8, kind: "divider", parity: "verso", sectionKey: "02_HOW",
     chapterNum: "02", chapterTitle: "HOW",
     subtitle: "talk to it · plan with it · own the notebook",
-    artSlot: "/art/div-02-how.svg",
     chapterIndex: 2, chapterTotal: 5,
   },
   { num: 9,  kind: "body",  parity: "recto", sectionKey: "02_HOW", body: "three-pillars" },
@@ -116,7 +123,6 @@ export const PAGES: readonly PageSpec[] = [
     num: 16, kind: "divider", parity: "verso", sectionKey: "03_INSIDE",
     chapterNum: "03", chapterTitle: "INSIDE",
     subtitle: "the engine room",
-    artSlot: "/art/div-03-inside.svg",
     chapterIndex: 3, chapterTotal: 5,
   },
   { num: 17, kind: "body", parity: "recto", sectionKey: "03_INSIDE", body: "preprocessing-fsm" },
@@ -127,7 +133,6 @@ export const PAGES: readonly PageSpec[] = [
     num: 20, kind: "divider", parity: "verso", sectionKey: "04_PROOF",
     chapterNum: "04", chapterTitle: "PROOF",
     subtitle: "what we measured · how it landed",
-    artSlot: "/art/div-04-proof.svg",
     chapterIndex: 4, chapterTotal: 5,
   },
   { num: 21, kind: "body", parity: "recto", sectionKey: "04_PROOF", body: "speed" },
@@ -137,7 +142,6 @@ export const PAGES: readonly PageSpec[] = [
     num: 23, kind: "divider", parity: "recto", sectionKey: "05_BUILD",
     chapterNum: "05", chapterTitle: "BUILD",
     subtitle: "eleven months · two engineers · 2,172 commits",
-    artSlot: "/art/div-05-build.svg",
     chapterIndex: 5, chapterTotal: 5,
   },
   { num: 24, kind: "spread", parity: "verso", sectionKey: "05_BUILD", half: "left"  },

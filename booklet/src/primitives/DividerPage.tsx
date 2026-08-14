@@ -15,8 +15,13 @@ export type DividerPageProps = {
   chapterTitle: string;
   subtitle: string;
   color: string;
-  /** `/art/<slot>.svg` — shown when the file exists; dashed placeholder otherwise. */
-  artSlot: string;
+  /**
+   * Optional commissioned artwork, as a path **relative to the deploy base**
+   * (e.g. `art/div-01-why.svg`, resolved against `import.meta.env.BASE_URL`).
+   * Omit it when no such asset exists — the programmatic diorama is then the
+   * artwork, not a fallback, and no request is made for a file that is not there.
+   */
+  artSlot?: string;
   /** Section key — selects the programmatic diorama fallback. */
   sectionKey: SectionKey;
   /** Chapter n / total — the `04 / 05` bottom band. */
@@ -141,15 +146,23 @@ export const DividerPage: React.FC<DividerPageProps> = ({
 );
 
 /**
- * Renders the commissioned SVG if it exists, else the programmatic diorama
- * keyed by sectionKey, else a dashed placeholder. Pipeline allows a future
- * hand-authored asset at `/art/div-0X-*.svg` to override the programmatic
- * fallback without code changes.
+ * Renders the commissioned SVG if one is declared, else the programmatic
+ * diorama keyed by sectionKey, else a dashed placeholder. A future
+ * hand-authored asset can override the diorama without code changes: drop it
+ * in `booklet/public/art/` and set `artSlot` to its base-relative path.
+ *
+ * `src` is resolved against `import.meta.env.BASE_URL` rather than used
+ * root-absolute. Vite rewrites its `base` into HTML attributes and CSS
+ * `url()`, but NOT into string literals inside JS — so the previous
+ * `/art/div-0X.svg` literals asked the domain root for a file the booklet
+ * serves under `/system-card/`, and the override could never have fired even
+ * once the art existed. The five 404s that produced were invisible precisely
+ * because the diorama below is good enough to hide them.
  */
-const ArtSlot: React.FC<{ src: string; sectionKey: SectionKey }> = ({ src, sectionKey }) => {
+const ArtSlot: React.FC<{ src?: string; sectionKey: SectionKey }> = ({ src, sectionKey }) => {
   const [failed, setFailed] = React.useState(false);
   const Diorama = DIORAMAS[sectionKey];
-  if (failed) {
+  if (!src || failed) {
     if (Diorama) {
       return (
         <div style={{ width: "100%", height: "100%" }}>
@@ -175,13 +188,13 @@ const ArtSlot: React.FC<{ src: string; sectionKey: SectionKey }> = ({ src, secti
           padding: 12,
         }}
       >
-        3D diorama slot · {src.split("/").pop()}
+        3D diorama slot · {src?.split("/").pop() ?? sectionKey}
       </div>
     );
   }
   return (
     <img
-      src={src}
+      src={`${import.meta.env.BASE_URL}${src}`}
       alt=""
       onError={() => setFailed(true)}
       style={{
