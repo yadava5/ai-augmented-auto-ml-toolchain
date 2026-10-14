@@ -40,6 +40,22 @@ stages:
     - if: '$CI_COMMIT_BRANCH =~ /^work\//'
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^(main|sprint11)$/'
 
+# Every job below installs npm packages, and `image: node:22-slim` ships npm
+# 10. Dependabot resolves these lockfiles with npm 11, and npm 10 rejects an
+# npm 11 lockfile as out of sync: `npm ci` exits EUSAGE with
+# `Missing: esbuild@0.28.2 from lock file` before installing anything, measured
+# here against backend/package-lock.json with npm 10.9.9. `npm install` does
+# NOT fail, which is worse -- it quietly rewrites the lock into npm 10's shape,
+# so the pipeline stops testing the tree that is committed. Pinned exactly, for
+# the same reason as .github/workflows/ci.yml: the resolver that reads a
+# lockfile must not change on its own schedule.
+#
+# Deliberately not applied to `noop`, which runs on alpine and has no npm.
+.npm11:
+  before_script:
+    - npm install -g npm@11.6.0
+    - npm --version
+
 # Trivial success-emitter. GitLab "Pipelines must succeed before merge"
 # requires a passing pipeline; a pipeline with status=skipped does NOT
 # satisfy it. This no-op guarantees every MR has one green job in ~5s
@@ -57,7 +73,7 @@ noop:
     - if: '$CI_COMMIT_TAG'
 
 install:
-  extends: .run_on_branch_or_mr
+  extends: [.run_on_branch_or_mr, .npm11]
   stage: install
   script:
     - npm run install:all
@@ -95,6 +111,7 @@ install:
       policy: pull-push
 
 assets:check:
+  extends: .npm11
   stage: check
   script:
     - npm run install:all
@@ -141,7 +158,7 @@ assets:check:
         - booklet/**/*
 
 lint:
-  extends: .run_on_branch_or_mr
+  extends: [.run_on_branch_or_mr, .npm11]
   stage: check
   script:
     - test -x backend/node_modules/.bin/eslint || npm --prefix backend ci --no-audit --no-fund
@@ -159,7 +176,7 @@ lint:
     policy: pull
 
 build:
-  extends: .run_on_branch_or_mr
+  extends: [.run_on_branch_or_mr, .npm11]
   stage: build
   script:
     - test -x backend/node_modules/.bin/tsc || npm --prefix backend ci --no-audit --no-fund
@@ -176,7 +193,7 @@ build:
     policy: pull
 
 test:
-  extends: .run_on_branch_or_mr
+  extends: [.run_on_branch_or_mr, .npm11]
   stage: test
   script:
     - test -x backend/node_modules/.bin/vitest || npm --prefix backend ci --no-audit --no-fund
@@ -193,7 +210,7 @@ test:
     policy: pull
 
 landing:build:
-  extends: .run_on_branch_or_mr
+  extends: [.run_on_branch_or_mr, .npm11]
   stage: build
   # Historically this job was `allow_failure: true` because its vitest
   # suite had stale demo-copy assertions. The 2026-04-20 demo-day plan

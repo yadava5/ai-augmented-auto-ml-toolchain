@@ -86,6 +86,30 @@ jobs:
             poster/package-lock.json
             booklet/package-lock.json
 
+      # setup-node brings the npm that ships with the pinned node, which for
+      # node 22 is npm 10. Dependabot resolves its lockfiles with npm 11, and
+      # the two disagree about what a complete lockfile contains: npm 11 omits
+      # optional peer entries npm 10 expects to find -- here
+      # `node_modules/vitest/node_modules/esbuild`, which vite 8 brings in --
+      # so npm 10 reads Dependabot's rewrite as out of sync and `npm ci` exits
+      #
+      #   npm error code EUSAGE
+      #   npm error `npm ci` can only install packages when your package.json
+      #   and package-lock.json ... are in sync
+      #   npm error Missing: esbuild@0.28.2 from lock file
+      #
+      # before a single test runs. Every backend security update failed there,
+      # continuously since 2026-09-03, and because the install is the first
+      # step, their red says nothing at all about lint, test or build -- three
+      # behaviour-changing bumps sat behind it ungraded for five weeks.
+      # Installing the resolver here, pinned exactly so that a new npm release
+      # cannot change the answer overnight, makes this job read the same
+      # lockfile format the bot writes.
+      - name: Pin npm to the version the lockfiles are resolved with
+        run: |
+          npm install -g npm@11.6.0
+          npm --version
+
       # Deliberately before the installs: this needs no dependencies at all
       # (node fs + crypto), so it fails fast and costs nothing. It goes red
       # when landing/public/system-card/ -- a build output committed so that no
@@ -99,9 +123,10 @@ jobs:
       # sync -- `Missing: source-map@0.6.1 from lock file`, the error that
       # failed the 2026-07-24 production deploy. That was true of the tree it
       # was written against. It is not true of this one: `npm ci` was run in
-      # all eight workspaces on linux under both node 22 / npm 10 (what
-      # .node-version pins, and what this job uses) and node 24 / npm 11, and
-      # every one of them installed clean. The workaround was costing
+      # all eight workspaces on linux under both node 22 / npm 10 and node 24
+      # / npm 11, and every one of them installed clean. (The step above now
+      # settles which of the two this job uses: npm 11, the resolver that
+      # wrote these lockfiles.) The workaround was costing
       # reproducibility for nothing -- two installs on different days could
       # resolve differently, which is the single property npm ci exists to
       # guarantee -- so it goes, and vercel.json goes with it.
