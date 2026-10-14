@@ -293,7 +293,7 @@ This matters more here than in most projects, so it gets its own section.
 | Category | Technologies |
 | --- | --- |
 | **Runtime** | Node.js 22, Express 5.2, TypeScript 5.6 |
-| **Agent** | `@langchain/langgraph` 1.2, `@modelcontextprotocol/sdk` 1.27 |
+| **Agent** | `@langchain/langgraph` 1.2, `@modelcontextprotocol/sdk` 1.32 |
 | **LLM** | `openai` 6.27 |
 | **Database** | PostgreSQL 16 with pgvector, `pg` 8.16, hand-written SQL |
 | **Validation** | Zod 3.23, `pgsql-ast-parser` 12.0 |
