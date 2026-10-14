@@ -3,7 +3,7 @@
   "sources": {
     "booklet/index.html": "45de00555d1bdaf007cf4720f71b6f927c619b9296e6a393ee90c88d11be0dc0",
     "booklet/package.json": "d670921838c0778637bb7e27b96846a4a040e92a91a84fdbd6c3a86af7ad5390",
-    "booklet/package-lock.json": "58293a31ea8c672359fe0a18dfbf10a3ed10fce7c2aabae59985064ba854763f",
+    "booklet/package-lock.json": "f56f1401d4bf0c30254c6d7a3ec8baa0fc86762e5ac82a87d909e6424b7e2b4c",
     "booklet/tsconfig.json": "4d1e104eb47e666e6e7d6d55a33fe87cc0f3f567cadef08ae058ed1b957af81f",
     "booklet/vite.config.ts": "b182281bb350232d24e5c4464a8501b6e4db4a9b4761841eb1f5dc47630a94f0",
     "booklet/src/Booklet.tsx": "4d94a9870c1380476dbe9ec9b5ce80225ffaaa7a4e36bc982d8664f6f6eed0b3",
