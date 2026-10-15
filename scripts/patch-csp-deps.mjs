@@ -27,7 +27,13 @@ const patchSpecs = [
     relativeFile: 'node_modules/zod/v4/core/util.js',
     replacements: [
       {
-        pattern: /export const allowsEval = cached\(\(\) => \{[\s\S]*?\n\}\);/,
+        // zod 4.6 annotates the binding (`/* @__PURE__*/ cached(...)`); 4.1,
+        // which the frontend workspace still resolves, does not. Astro 7
+        // depends on zod ^4.6.5, so both shapes are live in this repo at the
+        // same time and an un-annotated-only pattern throws here instead of
+        // patching -- the postinstall is the only thing standing between the
+        // CSP and zod's `new Function` probe.
+        pattern: /export const allowsEval = (?:\/\* @__PURE__\*\/ )?cached\(\(\) => \{[\s\S]*?\n\}\);/,
         to: `export const allowsEval = cached(() => false);`,
       },
     ],
@@ -36,7 +42,7 @@ const patchSpecs = [
     relativeFile: 'node_modules/zod/v4/core/util.cjs',
     replacements: [
       {
-        pattern: /exports\.allowsEval = cached\(\(\) => \{[\s\S]*?\n\}\);/,
+        pattern: /exports\.allowsEval = (?:\/\* @__PURE__\*\/ )?cached\(\(\) => \{[\s\S]*?\n\}\);/,
         to: `exports.allowsEval = cached(() => false);`,
       },
     ],
