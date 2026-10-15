@@ -29,17 +29,26 @@ export default defineConfig({
   server: { port: 4321 },
   vite: {
     // vite 8 switched `build.cssMinify` from esbuild to lightningcss, and the
-    // two do not agree on this stylesheet: lightningcss rewrote 1,330
+    // two do not agree on this stylesheet: lightningcss rewrote 724-1,339
     // declarations per page, including every custom-property colour into
     // 8-bit hex -- `rgba(10, 10, 11, .76)` became `#0a0a0bc2`, whose alpha is
     // 194/255 = 0.7608, not 0.76. It changed no pixel in any state the parity
-    // gate could capture, so this pin is not fixing a measured regression: it
-    // keeps the colours the page was authored with, on the page this repo
-    // treats as its design reference, and with it the shared Tailwind sheet
-    // still hashes to the same content as on main. Computed-style differences
-    // across the whole site drop from 13,597 to 3 with it in place. esbuild is
+    // gate could capture (160 differing pixels site-wide either way), so this
+    // pin is not fixing a measured regression: it keeps the colours the page
+    // was authored with, on the page this repo treats as its design
+    // reference. Across the 21 route/width pairs the gate covers, it takes
+    // computed-style differences from main from 52,627 down to 12. esbuild is
     // a documented optional peer of vite 8, which is why it is a
     // devDependency here.
+    //
+    // `cssTarget` is deliberately NOT set alongside it. It does control one
+    // real difference -- astro 7 emits scoped `@media (width<=768px)` where
+    // astro 5 emitted `max-width`, and `cssTarget: ['chrome100']` restores
+    // `max-width` -- but it was measured, not assumed, and the same build
+    // lowers `linear-gradient(90deg in oklch longer hue, ...)` on
+    // `.text-gradient-cycle` into a 20-stop sRGB approximation and adds ~215
+    // other declaration differences per page. Trading an authored gradient
+    // for three media queries is the wrong way round.
     build: { cssMinify: 'esbuild' },
     plugins: [importerAwareAtAlias()],
     resolve: {
