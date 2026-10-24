@@ -52,7 +52,7 @@
     "prettier-plugin-organize-imports": "3.2.3",
     "tsx": "^4.19.2",
     "typescript": "5.9.3",
-    "vite": "^8.2.1",
+    "vite": "^8.3.5",
     "vitest": "^4.1.11"
   }
 }
